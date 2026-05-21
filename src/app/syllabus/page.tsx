@@ -211,11 +211,6 @@ export default function SyllabusPage() {
           </button>
         )}
 
-        {events.length > 0 && !token && (
-          <div style={{ padding: '12px 16px', background: '#FFFBEB', borderRadius: '10px', border: '1px solid #FDE68A', fontSize: '13px', color: '#92400E', textAlign: 'center' }}>
-            Google 로그인 후 캘린더에 추가할 수 있어요
-          </div>
-        )}
 
         {allAdded && events.length > 0 && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -253,7 +248,7 @@ export default function SyllabusPage() {
                         {formatDate(ev.date)} · {formatTime(ev.startDateTime)}~{formatTime(ev.endDateTime)}
                       </div>
                     </div>
-                    {token && (
+                    {token ? (
                       isDone ? (
                         <CheckCircle2 size={18} color="#16A34A" />
                       ) : (
@@ -272,6 +267,8 @@ export default function SyllabusPage() {
                           추가
                         </button>
                       )
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#CBD5E1', flexShrink: 0 }}>로그인 후 추가</span>
                     )}
                   </div>
                 );
