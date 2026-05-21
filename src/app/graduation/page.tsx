@@ -5,8 +5,21 @@ import { ArrowLeft, GraduationCap } from 'lucide-react';
 import PdfUploader from '@/components/PdfUploader';
 import ResultBox from '@/components/ResultBox';
 
+const DEPARTMENTS = [
+  '컴퓨터과학전공', '데이터사이언스전공', '인공지능공학부',
+  '수학과', '통계학과', '화학과', '생명시스템학부', '화공생명공학부',
+  '지능형전자시스템학부', '신소재물리학부', '기계시스템학부',
+  '식품영양학과', '의류학과', '아동복지학부', '가족자원경영학과',
+  '영어영문학부', '한국어문학부', '역사문화학과', '문헌정보학과',
+  '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과',
+  '경제학부', '법학부', '정치외교학과', '행정학과', '홍보광고학과',
+  '소비자경제학과', '사회심리학과', '교육학부',
+];
+
 export default function GraduationPage() {
   const [result, setResult] = useState('');
+  const [dept, setDept] = useState('');
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
       <div style={{ background: 'white', borderBottom: '1px solid #E2E8F0', padding: '52px 20px 20px' }}>
@@ -19,12 +32,40 @@ export default function GraduationPage() {
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A' }}>졸업요건 분석</div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>이수표 PDF를 업로드하세요</div>
+            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>학과 선택 + 이수표 PDF → AI gap 분석</div>
           </div>
         </div>
       </div>
-      <div style={{ padding: '20px 16px' }}>
-        <PdfUploader webhookPath="graduation" onSuccess={setResult} />
+      <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* 학과 선택 */}
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>학과 선택</div>
+          <select
+            value={dept}
+            onChange={e => { setDept(e.target.value); setResult(''); }}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: '8px',
+              border: `1px solid ${dept ? '#1E40AF' : '#E2E8F0'}`,
+              background: 'white', fontSize: '13px',
+              color: dept ? '#0F172A' : '#94A3B8',
+              outline: 'none', cursor: 'pointer',
+            }}
+          >
+            <option value="">학과를 선택하세요</option>
+            {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          {dept && (
+            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '8px' }}>
+              학과 졸업요건을 자동으로 조회해 이수표와 비교 분석합니다
+            </div>
+          )}
+        </div>
+
+        <PdfUploader
+          webhookPath="graduation"
+          extraBody={dept ? { department: dept } : {}}
+          onSuccess={setResult}
+        />
         <ResultBox text={result} />
       </div>
     </div>
