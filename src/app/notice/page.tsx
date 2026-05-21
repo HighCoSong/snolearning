@@ -132,8 +132,17 @@ function ResultView({ items, analysis, token, onAddCal }: { items: NoticeItem[];
   const displayItems = tab === '전체' ? items : (byCategory[tab] || []);
 
   return (
-    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-      <div className="tab-bar" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {analysis && (
+        <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0', whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 600, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>✨</span> AI 맞춤 추천
+          </div>
+          {analysis}
+        </div>
+      )}
+      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+        <div className="tab-bar" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9' }}>
         {availableTabs.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '10px 8px', fontSize: '11px', fontWeight: tab === t ? 600 : 400,
@@ -152,6 +161,7 @@ function ResultView({ items, analysis, token, onAddCal }: { items: NoticeItem[];
           ? displayItems.map((item, i) => <NoticeCard key={i} item={item} token={token} onAddCal={onAddCal} />)
           : <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '20px' }}>관련 공지가 없습니다</div>
         }
+      </div>
       </div>
     </div>
   );
@@ -386,7 +396,14 @@ export default function NoticePage() {
           </div>
         )}
 
-        {items.length > 0 && !loading && <ResultView items={items} analysis={analysis} token={token} onAddCal={addToCalendar} />}
+        {items.length > 0 && !loading && (
+          <ResultView 
+            items={cats.length > 0 ? items.filter(item => cats.includes(categorize(item))) : items} 
+            analysis={analysis} 
+            token={token} 
+            onAddCal={addToCalendar} 
+          />
+        )}
       </div>
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
