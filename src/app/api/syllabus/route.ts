@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const payload = JSON.stringify(body);
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' };
 
   for (const url of [
     'https://trouble-smudge-stank.ngrok-free.dev/webhook/syllabus',
