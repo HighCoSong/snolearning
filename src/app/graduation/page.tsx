@@ -40,9 +40,21 @@ const DEPT_INFO: Record<string, string> = {
 };
 const DEPARTMENTS = Object.keys(DEPT_INFO);
 
+function saveUserProfile(dept: string, remainingSemesters: string) {
+  try {
+    localStorage.setItem('sno_user_profile', JSON.stringify({ department: dept, remaining_semesters: remainingSemesters }));
+  } catch { /* ignore */ }
+}
+
 export default function GraduationPage() {
   const [result, setResult] = useState('');
   const [dept, setDept] = useState('');
+  const [remainingSemesters, setRemainingSemesters] = useState('4');
+
+  function handleSuccess(text: string) {
+    setResult(text);
+    if (dept) saveUserProfile(dept, remainingSemesters);
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
@@ -56,7 +68,7 @@ export default function GraduationPage() {
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A' }}>졸업요건 분석</div>
-            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>학과 선택 + 이수표 PDF → AI gap 분석</div>
+            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>학과 선택 + 이수표 PDF → AI 로드맵 설계</div>
           </div>
         </div>
       </div>
@@ -95,10 +107,33 @@ export default function GraduationPage() {
           )}
         </div>
 
+        {/* 남은 학기 선택 */}
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>남은 학기 수</div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {['1', '2', '3', '4', '5', '6', '7', '8'].map(s => (
+              <button
+                key={s}
+                onClick={() => setRemainingSemesters(s)}
+                style={{
+                  padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: remainingSemesters === s ? 600 : 400,
+                  border: `1px solid ${remainingSemesters === s ? '#1E40AF' : '#E2E8F0'}`,
+                  background: remainingSemesters === s ? '#EFF6FF' : 'white',
+                  color: remainingSemesters === s ? '#1E40AF' : '#64748B',
+                  cursor: 'pointer',
+                }}
+              >{s}학기</button>
+            ))}
+          </div>
+          <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '8px' }}>
+            선수과목 관계를 고려한 학기별 수강 로드맵을 생성합니다
+          </div>
+        </div>
+
         <PdfUploader
           webhookPath="graduation"
-          extraBody={dept ? { department: dept } : {}}
-          onSuccess={setResult}
+          extraBody={dept ? { department: dept, remaining_semesters: remainingSemesters } : { remaining_semesters: remainingSemesters }}
+          onSuccess={handleSuccess}
         />
         <ResultBox text={result} />
       </div>

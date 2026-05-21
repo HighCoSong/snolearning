@@ -157,6 +157,8 @@ function ResultView({ items, analysis, token, onAddCal }: { items: NoticeItem[];
   );
 }
 
+interface UserProfile { department: string; remaining_semesters: string; }
+
 export default function NoticePage() {
   const [depts, setDepts] = useState<string[]>([]);
   const [cats, setCats] = useState<string[]>([]);
@@ -168,7 +170,15 @@ export default function NoticePage() {
   const [email, setEmail] = useState('');
   const [scriptReady, setScriptReady] = useState(false);
   const [cachedAt, setCachedAt] = useState<Date | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const didFetch = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sno_user_profile');
+      if (raw) setUserProfile(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
 
   const CACHE_KEY = 'notice_cache';
   const CACHE_TTL = 30 * 60 * 1000; // 30분
@@ -236,10 +246,15 @@ export default function NoticePage() {
     if (useCache && loadCache()) return;
     setLoading(true); setError('');
     try {
+      const body: Record<string, unknown> = { departments, categories };
+      if (userProfile?.department) {
+        body.major = userProfile.department;
+        body.remaining_semesters = userProfile.remaining_semesters;
+      }
       const res = await fetch('/api/notice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ departments, categories }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
       const text = await res.text();
@@ -294,6 +309,20 @@ export default function NoticePage() {
       </div>
 
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* 개인화 프로필 배지 */}
+        {userProfile?.department && (
+          <div style={{ background: '#EFF6FF', borderRadius: '10px', padding: '10px 14px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px' }}>🎓</span>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1E40AF' }}>{userProfile.department}</div>
+                <div style={{ fontSize: '11px', color: '#3B82F6' }}>남은 학기 {userProfile.remaining_semesters}학기 · 졸업요건 분석 기반 맞춤 공지</div>
+              </div>
+            </div>
+            <button onClick={() => { localStorage.removeItem('sno_user_profile'); setUserProfile(null); }} style={{ fontSize: '11px', color: '#93C5FD', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>×</button>
+          </div>
+        )}
+
         {/* Google Login */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '12px 16px', border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#0F172A', marginBottom: '8px' }}>
