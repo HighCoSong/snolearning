@@ -3,7 +3,14 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Bell, RefreshCw, Loader2, ExternalLink, CalendarDays, CheckCircle2, LogIn, LogOut, Plus } from 'lucide-react';
 
-const DEPARTMENTS = ['컴퓨터과학전공', '수학과', '화학과', '통계학과', '식품영양학과', '의류학과', '영어영문학부', '경제학부', '법학부'];
+const DEPARTMENTS = [
+  '컴퓨터과학전공', '데이터사이언스전공', '인공지능공학부', '수학과', '통계학과',
+  '화학과', '생명시스템학부', '화공생명공학부', '지능형전자시스템학부', '신소재물리학부', '기계시스템학부',
+  '식품영양학과', '의류학과', '아동복지학부', '가족자원경영학과',
+  '영어영문학부', '한국어문학부', '역사문화학과', '문헌정보학과',
+  '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과',
+  '경제학부', '법학부', '정치외교학과', '행정학과', '홍보광고학과', '소비자경제학과', '사회심리학과', '교육학부',
+];
 const CATEGORIES = ['장학금', '취업/인턴십', '공모전', '행사/프로그램', '교환학생', '기타'];
 
 const CATEGORY_KEYS: Record<string, string[]> = {
@@ -125,17 +132,17 @@ function ResultView({ items, analysis, token, onAddCal }: { items: NoticeItem[];
 
   return (
     <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9', padding: '0 4px' }}>
+      <div className="tab-bar" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9' }}>
         {availableTabs.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            padding: '10px 14px', fontSize: '12px', fontWeight: tab === t ? 600 : 400,
+            flex: 1, padding: '10px 8px', fontSize: '11px', fontWeight: tab === t ? 600 : 400,
             color: tab === t ? '#1E40AF' : '#94A3B8',
             background: 'none', border: 'none',
             borderBottom: `2px solid ${tab === t ? '#1E40AF' : 'transparent'}`,
-            cursor: 'pointer', whiteSpace: 'nowrap',
+            cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 'fit-content',
           }}>
             {t}
-            {t !== '전체' && byCategory[t] && <span style={{ marginLeft: '4px', fontSize: '10px', color: tab === t ? '#1E40AF' : '#CBD5E1' }}>{byCategory[t].length}</span>}
+            {t !== '전체' && byCategory[t] && <span style={{ marginLeft: '3px', fontSize: '10px', color: tab === t ? '#1E40AF' : '#CBD5E1' }}>{byCategory[t].length}</span>}
           </button>
         ))}
       </div>
@@ -324,12 +331,13 @@ export default function NoticePage() {
               {CATEGORIES.map(c => <Chip key={c} label={c} selected={cats.includes(c)} color="#D97706" onClick={() => toggle(cats, c, setCats)} />)}
             </div>
           </div>
-          {activeFilterCount > 0 && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: loading ? '#E2E8F0' : '#1E40AF', color: loading ? '#94A3B8' : 'white', border: 'none', cursor: loading ? 'default' : 'pointer' }}>적용</button>
-              <button onClick={() => { setDepts([]); setCats([]); fetchNotices([], []); }} style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '13px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>초기화</button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: loading ? '#E2E8F0' : '#1E40AF', color: loading ? '#94A3B8' : 'white', border: 'none', cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Bell size={14} />}
+                공지 조회하기
+              </button>
+              {activeFilterCount > 0 && <button onClick={() => { setDepts([]); setCats([]); fetchNotices([], []); }} style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '13px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>초기화</button>}
+          </div>
         </div>
 
         {error && <div style={{ padding: '10px 14px', background: '#FFF1F2', borderRadius: '8px', color: '#E11D48', fontSize: '13px' }}>{error}</div>}
@@ -343,7 +351,11 @@ export default function NoticePage() {
 
         {items.length > 0 && !loading && <ResultView items={items} analysis={analysis} token={token} onAddCal={addToCalendar} />}
       </div>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .tab-bar { scrollbar-width: none; -ms-overflow-style: none; }
+        .tab-bar::-webkit-scrollbar { display: none; }
+      `}</style>
     </div>
   );
 }

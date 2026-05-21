@@ -1,20 +1,44 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, GraduationCap } from 'lucide-react';
+import { ArrowLeft, GraduationCap, ExternalLink } from 'lucide-react';
 import PdfUploader from '@/components/PdfUploader';
 import ResultBox from '@/components/ResultBox';
 
-const DEPARTMENTS = [
-  '컴퓨터과학전공', '데이터사이언스전공', '인공지능공학부',
-  '수학과', '통계학과', '화학과', '생명시스템학부', '화공생명공학부',
-  '지능형전자시스템학부', '신소재물리학부', '기계시스템학부',
-  '식품영양학과', '의류학과', '아동복지학부', '가족자원경영학과',
-  '영어영문학부', '한국어문학부', '역사문화학과', '문헌정보학과',
-  '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과',
-  '경제학부', '법학부', '정치외교학과', '행정학과', '홍보광고학과',
-  '소비자경제학과', '사회심리학과', '교육학부',
-];
+const DEPT_INFO: Record<string, string> = {
+  '컴퓨터과학전공': 'https://csweb.sookmyung.ac.kr/',
+  '데이터사이언스전공': 'https://ds.sookmyung.ac.kr/',
+  '인공지능공학부': 'https://aie.sookmyung.ac.kr/',
+  '수학과': 'http://math.sookmyung.ac.kr/',
+  '통계학과': 'https://stat.sookmyung.ac.kr/',
+  '화학과': 'https://chem.sookmyung.ac.kr/',
+  '생명시스템학부': 'https://bio.sookmyung.ac.kr/',
+  '화공생명공학부': 'https://chembioe.sookmyung.ac.kr/',
+  '지능형전자시스템학부': 'https://electro.sookmyung.ac.kr/',
+  '신소재물리학부': 'https://physics.sookmyung.ac.kr/',
+  '기계시스템학부': 'https://mse.sookmyung.ac.kr/',
+  '식품영양학과': 'http://fn.sookmyung.ac.kr/',
+  '의류학과': 'https://cloth.sookmyung.ac.kr/',
+  '아동복지학부': 'http://childwelfare.sookmyung.ac.kr/',
+  '가족자원경영학과': 'https://family.sookmyung.ac.kr/',
+  '영어영문학부': 'http://english.sookmyung.ac.kr/',
+  '한국어문학부': 'http://korean.sookmyung.ac.kr/',
+  '역사문화학과': 'http://history.sookmyung.ac.kr/',
+  '문헌정보학과': 'https://lis.sookmyung.ac.kr/',
+  '프랑스언어·문화학과': 'http://french.sookmyung.ac.kr/',
+  '중어중문학부': 'http://chinese.sookmyung.ac.kr/',
+  '독일언어·문화학과': 'http://german.sookmyung.ac.kr/',
+  '일본학과': 'http://japan.sookmyung.ac.kr/',
+  '경제학부': 'http://econ.sookmyung.ac.kr/',
+  '법학부': 'http://law.sookmyung.ac.kr/',
+  '정치외교학과': 'http://politics.sookmyung.ac.kr/',
+  '행정학과': 'http://pa.sookmyung.ac.kr/',
+  '홍보광고학과': 'http://prad.sookmyung.ac.kr/',
+  '소비자경제학과': 'http://conecon.sookmyung.ac.kr/',
+  '사회심리학과': 'https://www.socpsy.sookmyung.ac.kr/',
+  '교육학부': 'https://edu.sookmyung.ac.kr/',
+};
+const DEPARTMENTS = Object.keys(DEPT_INFO);
 
 export default function GraduationPage() {
   const [result, setResult] = useState('');
@@ -55,8 +79,18 @@ export default function GraduationPage() {
             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           {dept && (
-            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '8px' }}>
-              학과 졸업요건을 자동으로 조회해 이수표와 비교 분석합니다
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+              <div style={{ fontSize: '11px', color: '#64748B' }}>
+                학과 졸업요건을 자동으로 조회해 이수표와 비교 분석합니다
+              </div>
+              <a
+                href={DEPT_INFO[dept]}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 500, color: '#1E40AF', textDecoration: 'none', background: '#EFF6FF', borderRadius: '6px', padding: '4px 8px', flexShrink: 0, marginLeft: '8px' }}
+              >
+                <ExternalLink size={10} /> 학과 홈페이지
+              </a>
             </div>
           )}
         </div>
