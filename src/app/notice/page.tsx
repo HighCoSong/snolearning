@@ -159,7 +159,26 @@ export default function NoticePage() {
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [scriptReady, setScriptReady] = useState(false);
+  const [cachedAt, setCachedAt] = useState<Date | null>(null);
   const didFetch = useRef(false);
+
+  const CACHE_KEY = 'notice_cache';
+  const CACHE_TTL = 30 * 60 * 1000; // 30분
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return false;
+      const { items: i, analysis: a, ts } = JSON.parse(raw);
+      if (Date.now() - ts > CACHE_TTL) return false;
+      setItems(i); setAnalysis(a); setCachedAt(new Date(ts));
+      return true;
+    } catch { return false; }
+  }
+
+  function saveCache(i: NoticeItem[], a: string) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ items: i, analysis: a, ts: Date.now() })); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     if (document.querySelector('script[src*="accounts.google.com/gsi"]')) { setScriptReady(true); return; }
@@ -205,8 +224,9 @@ export default function NoticePage() {
     set(arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item]);
   }
 
-  async function fetchNotices(departments: string[], categories: string[]) {
-    setLoading(true); setError(''); setItems([]); setAnalysis('');
+  async function fetchNotices(departments: string[], categories: string[], useCache = false) {
+    if (useCache && loadCache()) return;
+    setLoading(true); setError('');
     try {
       const res = await fetch('/api/notice', {
         method: 'POST',
@@ -217,10 +237,13 @@ export default function NoticePage() {
       const text = await res.text();
       try {
         const json = JSON.parse(text);
-        setItems(json.items || []);
-        setAnalysis(json.analysis || '');
+        const newItems = json.items || [];
+        const newAnalysis = json.analysis || '';
+        setItems(newItems);
+        setAnalysis(newAnalysis);
+        saveCache(newItems, newAnalysis);
+        setCachedAt(new Date());
       } catch {
-        // fallback: old text format
         setAnalysis(text);
       }
     } catch (e: unknown) {
@@ -231,7 +254,7 @@ export default function NoticePage() {
   }
 
   useEffect(() => {
-    if (!didFetch.current) { didFetch.current = true; fetchNotices([], []); }
+    if (!didFetch.current) { didFetch.current = true; fetchNotices([], [], true); }
   }, []);
 
   const activeFilterCount = depts.length + cats.length;
@@ -252,10 +275,13 @@ export default function NoticePage() {
               <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>학교 공지 · 장학금 · 취업 정보</div>
             </div>
           </div>
-          <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: loading ? 'default' : 'pointer' }}>
-            {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
-            새로고침
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+            <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: loading ? 'default' : 'pointer' }}>
+              {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
+              새로고침
+            </button>
+            {cachedAt && !loading && <div style={{ fontSize: '10px', color: '#CBD5E1' }}>{cachedAt.getHours()}:{cachedAt.getMinutes().toString().padStart(2,'0')} 기준</div>}
+          </div>
         </div>
       </div>
 
