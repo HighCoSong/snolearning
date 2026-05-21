@@ -6,8 +6,8 @@ export async function POST(req: NextRequest) {
   const headers = { 'Content-Type': 'application/json' };
 
   for (const url of [
-    'http://localhost:5678/webhook/notice',
-    'http://localhost:5678/webhook-test/notice',
+    'https://trouble-smudge-stank.ngrok-free.dev/webhook/notice',
+    'https://trouble-smudge-stank.ngrok-free.dev/webhook-test/notice',
   ]) {
     try {
       const res = await fetch(url, { method: 'POST', headers, body: payload });

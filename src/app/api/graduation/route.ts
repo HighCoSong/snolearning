@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
 
   // Try production webhook first, fall back to test webhook
   for (const url of [
-    'http://localhost:5678/webhook/graduation',
-    'http://localhost:5678/webhook-test/graduation',
+    'https://trouble-smudge-stank.ngrok-free.dev/webhook/graduation',
+    'https://trouble-smudge-stank.ngrok-free.dev/webhook-test/graduation',
   ]) {
     try {
       const res = await fetch(url, { method: 'POST', headers, body: payload });
