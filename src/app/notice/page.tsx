@@ -3,14 +3,15 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Bell, RefreshCw, Loader2, ExternalLink, CalendarDays, CheckCircle2, LogIn, LogOut, Plus } from 'lucide-react';
 
-const DEPARTMENTS = [
-  '컴퓨터과학전공', '데이터사이언스전공', '인공지능공학부', '수학과', '통계학과',
-  '화학과', '생명시스템학부', '화공생명공학부', '지능형전자시스템학부', '신소재물리학부', '기계시스템학부',
-  '식품영양학과', '의류학과', '아동복지학부', '가족자원경영학과',
-  '영어영문학부', '한국어문학부', '역사문화학과', '문헌정보학과',
-  '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과',
-  '경제학부', '법학부', '정치외교학과', '행정학과', '홍보광고학과', '소비자경제학과', '사회심리학과', '교육학부',
+const DEPT_BY_COLLEGE: { college: string; depts: string[] }[] = [
+  { college: '문과대학', depts: ['한국어문학부', '역사문화학과', '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과', '문헌정보학과', '문화관광학전공', '르꼬르동블루외식경영전공', '교육학부'] },
+  { college: '이과대학', depts: ['수학과', '통계학과', '화학과', '생명시스템학부', '체육교육과', '무용과'] },
+  { college: '공과대학', depts: ['화공생명공학부', '인공지능공학부', '지능형전자시스템학부', '신소재물리학부', '컴퓨터과학전공', '데이터사이언스전공', '기계시스템학부', '첨단공학부'] },
+  { college: '생활과학대학', depts: ['가족자원경영학과', '아동복지학부', '의류학과', '식품영양학과'] },
+  { college: '사회과학대학', depts: ['정치외교학과', '행정학과', '홍보광고학과', '소비자경제학과', '사회심리학과'] },
+  { college: '법과대학', depts: ['법학부'] },
 ];
+const DEPARTMENTS = DEPT_BY_COLLEGE.flatMap(c => c.depts);
 const CATEGORIES = ['장학금', '취업/인턴십', '공모전', '행사/프로그램', '교환학생', '기타'];
 
 const CATEGORY_KEYS: Record<string, string[]> = {
@@ -320,9 +321,16 @@ export default function NoticePage() {
         {/* Filters */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '8px' }}>학과</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {DEPARTMENTS.map(d => <Chip key={d} label={d} selected={depts.includes(d)} color="#1E40AF" onClick={() => toggle(depts, d, setDepts)} />)}
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '10px' }}>학과</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {DEPT_BY_COLLEGE.map(({ college, depts: ds }) => (
+                <div key={college}>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: '#94A3B8', marginBottom: '6px', letterSpacing: '0.05em' }}>{college}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                    {ds.map(d => <Chip key={d} label={d} selected={depts.includes(d)} color="#1E40AF" onClick={() => toggle(depts, d, setDepts)} />)}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <div>
