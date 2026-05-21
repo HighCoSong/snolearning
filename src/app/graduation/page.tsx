@@ -37,6 +37,12 @@ const DEPT_INFO: Record<string, string> = {
   '소비자경제학과': 'http://conecon.sookmyung.ac.kr/',
   '사회심리학과': 'https://www.socpsy.sookmyung.ac.kr/',
   '교육학부': 'https://edu.sookmyung.ac.kr/',
+  '미디어학부': 'https://home.sookmyung.ac.kr/media/index.do',
+  '영어영문학전공': 'https://english.sookmyung.ac.kr/',
+  '글로벌협력전공': 'http://global.sookmyung.ac.kr/',
+  '앙트러프러너십전공': 'http://global.sookmyung.ac.kr/',
+  '융합국제학부': 'https://hallyu.sookmyung.ac.kr/',
+  '한류국제학부': 'https://hallyu.sookmyung.ac.kr/',
 };
 const DEPARTMENTS = Object.keys(DEPT_INFO);
 
