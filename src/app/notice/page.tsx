@@ -357,10 +357,22 @@ export default function NoticePage() {
     if (useCache && loadCache()) return;
     setLoading(true); setError('');
     try {
+      // 최신 프로필 정보 가져오기
+      const rawProfile = localStorage.getItem('sno_user_profile');
+      const profile = rawProfile ? JSON.parse(rawProfile) : null;
+
+      const body: Record<string, unknown> = { 
+        departments, 
+        categories,
+        major: profile?.department || '',
+        remaining_semesters: profile?.remaining_semesters || '',
+        career_goal: profile?.career_goal || ''
+      };
+
       const res = await fetch('/api/notice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ departments, categories }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
       const text = await res.text();
