@@ -55,15 +55,15 @@ export default function ResultBox({ text }: Props) {
             a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: '#1E40AF', textDecoration: 'underline' }}>{children}</a>,
             hr: () => <hr style={{ border: 'none', borderTop: '1px solid #E2E8F0', margin: '12px 0' }} />,
             table: ({ children }) => (
-              <div style={{ overflowX: 'auto', margin: '10px 0' }}>
-                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px' }}>{children}</table>
+              <div style={{ overflowX: 'auto', margin: '10px 0', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', minWidth: '320px' }}>{children}</table>
               </div>
             ),
-            thead: ({ children }) => <thead style={{ background: '#F8FAFC' }}>{children}</thead>,
+            thead: ({ children }) => <thead style={{ background: '#F1F5F9' }}>{children}</thead>,
             tbody: ({ children }) => <tbody>{children}</tbody>,
             tr: ({ children }) => <tr style={{ borderBottom: '1px solid #E2E8F0' }}>{children}</tr>,
-            th: ({ children }) => <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#475569', borderBottom: '2px solid #E2E8F0', whiteSpace: 'nowrap' }}>{children}</th>,
-            td: ({ children }) => <td style={{ padding: '7px 10px', color: '#334155', verticalAlign: 'top' }}>{children}</td>,
+            th: ({ children }) => <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>{children}</th>,
+            td: ({ children }) => <td style={{ padding: '7px 10px', color: '#334155', verticalAlign: 'top', wordBreak: 'keep-all' }}>{children}</td>,
           }}
         >
           {text}

@@ -10,6 +10,8 @@ interface CalEvent {
   startDateTime: string;
   endDateTime: string;
   description?: string;
+  isSpecial?: boolean;
+  eventType?: string;
 }
 
 declare global {
@@ -56,7 +58,7 @@ function formatDate(dateStr: string) {
 }
 
 function formatTime(dt: string) {
-  return dt.slice(11, 16);
+  return dt?.slice(11, 16) ?? '';
 }
 
 export default function SyllabusPage() {
@@ -73,17 +75,33 @@ export default function SyllabusPage() {
   // 저장된 토큰 복원
   useEffect(() => {
     const saved = loadToken();
-    if (saved) { setToken(saved.token); setEmail(saved.email); }
+    if (saved) {
+      queueMicrotask(() => {
+        setToken(saved.token);
+        setEmail(saved.email);
+      });
+    }
   }, []);
 
   useEffect(() => {
-    if (document.querySelector('script[src*="accounts.google.com/gsi"]')) {
-      setScriptReady(true); return;
+    const markReady = () => setScriptReady(true);
+
+    if (window.google?.accounts?.oauth2) {
+      queueMicrotask(markReady);
+      return;
     }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[src*="accounts.google.com/gsi"]');
+
+    if (existing) {
+      existing.addEventListener('load', markReady);
+      return () => existing.removeEventListener('load', markReady);
+    }
+
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.async = true;
-    s.onload = () => setScriptReady(true);
+    s.onload = markReady;
     document.head.appendChild(s);
   }, []);
 
@@ -191,7 +209,7 @@ export default function SyllabusPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
-      <div style={{ background: 'white', borderBottom: '1px solid #E2E8F0', padding: '52px 20px 20px' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 40, background: 'white', borderBottom: '1px solid #E2E8F0', padding: '52px 20px 20px' }}>
         <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#64748B', textDecoration: 'none', fontSize: '13px', marginBottom: '16px' }}>
           <ArrowLeft size={14} /> 홈
         </Link>
@@ -306,14 +324,15 @@ export default function SyllabusPage() {
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '12px 16px',
                     borderBottom: i < events.length - 1 ? '1px solid #F8FAFC' : 'none',
-                    background: isDone ? '#F0FDF4' : 'white',
+                    background: isDone ? '#F0FDF4' : ev.isSpecial ? '#FFFBEB' : 'white',
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: isDone ? '#15803D' : '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '13px', fontWeight: ev.isSpecial ? 600 : 500, color: isDone ? '#15803D' : ev.isSpecial ? '#92400E' : '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {ev.title}
                       </div>
                       <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>
                         {formatDate(ev.date)} · {formatTime(ev.startDateTime)}~{formatTime(ev.endDateTime)}
+                        {ev.isSpecial && <span style={{ marginLeft: '6px', background: '#FEF3C7', color: '#92400E', borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 600 }}>{ev.eventType}</span>}
                       </div>
                     </div>
                     {token ? (

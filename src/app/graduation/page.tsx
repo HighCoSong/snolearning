@@ -70,7 +70,8 @@ function saveUserProfile(dept: string, remainingSemesters: string, careerGoal: s
 export default function GraduationPage() {
   const [result, setResult] = useState('');
   const [dept, setDept] = useState('');
-  const [remainingSemesters, setRemainingSemesters] = useState('4');
+  const [remainingSemesters, setRemainingSemesters] = useState('');
+  const [analysisError, setAnalysisError] = useState('');
   const [careerGoal, setCareerGoal] = useState('');
   const [cachedBase64, setCachedBase64] = useState('');
   const [cachedFileName, setCachedFileName] = useState('');
@@ -79,21 +80,17 @@ export default function GraduationPage() {
   const [lastAnalyzedSem, setLastAnalyzedSem] = useState('');
   const [lastAnalyzedGoal, setLastAnalyzedGoal] = useState('');
 
-  // Restore cached result on mount
+  // Clear cache on mount so results don't persist across refreshes
   useEffect(() => {
-    const cache = loadGradCache();
-    if (cache) {
-      setResult(cache.result);
-      setDept(cache.dept);
-      setRemainingSemesters(cache.remainingSemesters);
-      setCareerGoal(cache.careerGoal || '');
-      setLastAnalyzedDept(cache.dept);
-      setLastAnalyzedSem(cache.remainingSemesters);
-      setLastAnalyzedGoal(cache.careerGoal || '');
-    }
+    try { localStorage.removeItem(GRAD_CACHE_KEY); } catch { /* ignore */ }
   }, []);
 
   function handleSuccess(text: string) {
+    if (!text?.trim()) {
+      setAnalysisError('분석 결과를 받지 못했습니다. n8n 워크플로우가 실행 중인지 확인해주세요.');
+      return;
+    }
+    setAnalysisError('');
     setResult(text);
     setLastAnalyzedDept(dept);
     setLastAnalyzedSem(remainingSemesters);
@@ -130,7 +127,7 @@ export default function GraduationPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
-      <div style={{ background: 'white', borderBottom: '1px solid #E2E8F0', padding: '52px 20px 20px' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 40, background: 'white', borderBottom: '1px solid #E2E8F0', padding: '52px 20px 20px' }}>
         <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#64748B', textDecoration: 'none', fontSize: '13px', marginBottom: '16px' }}>
           <ArrowLeft size={14} /> 홈
         </Link>
@@ -228,6 +225,11 @@ export default function GraduationPage() {
           onSuccess={handleSuccess}
           onBase64={(b64, name) => { setCachedBase64(b64); setCachedFileName(name); }}
         />
+        {analysisError && (
+          <div style={{ padding: '12px 14px', background: '#FFF1F2', borderRadius: '10px', border: '1px solid #FECACA', fontSize: '13px', color: '#E11D48' }}>
+            {analysisError}
+          </div>
+        )}
 
         {canReanalyze && (
           <button
