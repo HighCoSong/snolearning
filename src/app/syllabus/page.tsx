@@ -20,6 +20,7 @@ declare global {
           initTokenClient: (cfg: {
             client_id: string;
             scope: string;
+            prompt?: string;
             callback: (r: { access_token: string }) => void;
           }) => { requestAccessToken: () => void };
         };

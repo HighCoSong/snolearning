@@ -67,7 +67,7 @@ interface NoticeItem {
 declare global {
   interface Window {
     google: {
-      accounts: { oauth2: { initTokenClient: (cfg: { client_id: string; scope: string; callback: (r: { access_token: string }) => void }) => { requestAccessToken: () => void } } };
+      accounts: { oauth2: { initTokenClient: (cfg: { client_id: string; scope: string; prompt?: string; callback: (r: { access_token: string }) => void }) => { requestAccessToken: () => void } } };
     };
   }
 }
