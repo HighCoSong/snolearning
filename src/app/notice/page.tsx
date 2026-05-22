@@ -15,11 +15,11 @@ const DEPT_BY_COLLEGE: { college: string; depts: string[] }[] = [
 const CATEGORIES = ['장학금', '취업/인턴십', '공모전', '행사/프로그램', '교환학생', '기타'];
 
 const CATEGORY_KEYS: Record<string, string[]> = {
-  '장학금': ['장학', '장학금', '지원금', '장학생'],
-  '취업/인턴십': ['취업', '인턴', '채용', '직무', '구인', '알바'],
-  '공모전': ['공모전', '대회', '경진', '공모', '콘테스트', '해커톤'],
-  '행사/프로그램': ['행사', '프로그램', '특강', '세미나', '설명회', '캠프', '워크숍', '비교과', '간담회', 'colloquium', '포럼', '강연', '멘토'],
-  '교환학생': ['교환학생', '해외', '유학', '글로벌', '교환', '파견'],
+  '장학금': ['장학', '장학금', '지원금', '장학생', '포상', '지급'],
+  '취업/인턴십': ['취업', '인턴', '채용', '직무', '구인', '알바', '공고', '현장실습', '커리어'],
+  '공모전': ['공모전', '대회', '경진', '공모', '콘테스트', '해커톤', '챌린지', '수상'],
+  '행사/프로그램': ['행사', '프로그램', '특강', '세미나', '설명회', '캠프', '워크숍', '비교과', '간담회', 'colloquium', '포럼', '강연', '멘토', '모집', '교육'],
+  '교환학생': ['교환학생', '해외', '유학', '글로벌', '교환', '파견', '방문학생'],
   '기타': [],
 };
 
@@ -102,7 +102,17 @@ function formatKoreanDate(iso: string): string {
 }
 
 function categorize(item: NoticeItem): string {
-  const text = ((item.source || '') + ' ' + item.title).toLowerCase();
+  const source = item.source || '';
+  const text = (source + ' ' + item.title).toLowerCase();
+  
+  // 1. 출처 기반 우선 분류 (비교과/SW중심대학은 높은 확률로 프로그램/취업임)
+  if (source.includes('비교과') || source.includes('SW중심대학')) {
+    if (CATEGORY_KEYS['취업/인턴십'].some(kw => text.includes(kw))) return '취업/인턴십';
+    if (CATEGORY_KEYS['장학금'].some(kw => text.includes(kw))) return '장학금';
+    return '행사/프로그램'; 
+  }
+
+  // 2. 키워드 기반 분류
   for (const cat of CATEGORIES.slice(0, -1)) {
     if (CATEGORY_KEYS[cat].some(kw => text.includes(kw.toLowerCase()))) return cat;
   }
