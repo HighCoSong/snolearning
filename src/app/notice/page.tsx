@@ -49,10 +49,9 @@ function resolveUrl(url: string, source?: string): string {
 }
 
 function getSourceGroup(source: string): string {
-  if (source === '비교과프로그램') return '비교과';
-  if (source === 'SW중심대학') return 'SW중심대학';
-  if (source.startsWith('학과공지')) return '학과공지';
-  if (source === '학사공지') return '기타';
+  if (source.includes('비교과')) return '비교과';
+  if (source.includes('SW중심대학')) return 'SW중심대학';
+  if (source.includes('학과공지')) return '학과공지';
   return '기타';
 }
 
@@ -102,19 +101,16 @@ function formatKoreanDate(iso: string): string {
 
 function categorize(item: NoticeItem): string {
   const source = item.source || '';
-  const text = (source + ' ' + item.title).toLowerCase();
+  const title = item.title || '';
+  const text = (source + ' ' + title).toLowerCase();
   
-  // 1. 출처 기반 우선 분류 (비교과/SW중심대학은 높은 확률로 프로그램/취업임)
-  if (source.includes('비교과') || source.includes('SW중심대학')) {
-    if (CATEGORY_KEYS['취업/인턴십'].some(kw => text.includes(kw))) return '취업/인턴십';
-    if (CATEGORY_KEYS['장학금'].some(kw => text.includes(kw))) return '장학금';
-    return '행사/프로그램'; 
-  }
-
-  // 2. 키워드 기반 분류
-  for (const cat of CATEGORIES.slice(0, -1)) {
-    if (CATEGORY_KEYS[cat].some(kw => text.includes(kw.toLowerCase()))) return cat;
-  }
+  if (CATEGORY_KEYS['장학금'].some(kw => text.includes(kw.toLowerCase()))) return '장학금';
+  if (CATEGORY_KEYS['취업/인턴십'].some(kw => text.includes(kw.toLowerCase()))) return '취업/인턴십';
+  if (CATEGORY_KEYS['공모전'].some(kw => text.includes(kw.toLowerCase()))) return '공모전';
+  if (CATEGORY_KEYS['행사/프로그램'].some(kw => text.includes(kw.toLowerCase()))) return '행사/프로그램';
+  
+  if (source.includes('비교과') || source.includes('SW중심대학')) return '행사/프로그램';
+  
   return '기타';
 }
 
