@@ -122,7 +122,7 @@ export default function GraduationPage() {
       if (res.ok) {
         const text = await res.text();
         handleSuccess(text);
-        saveGradCache(text, dept, remainingSemesters);
+        saveGradCache(text, dept, remainingSemesters, careerGoal);
       }
     } catch { /* ignore */ }
     setReanalyzing(false);
