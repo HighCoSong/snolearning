@@ -49,7 +49,7 @@ function resolveUrl(url: string, source?: string): string {
 }
 
 function getSourceGroup(source: string): string {
-  const s = source.toLowerCase();
+  const s = (source || '').toLowerCase();
   if (s.includes('비교과')) return '비교과';
   if (s.includes('sw')) return 'SW중심대학';
   return '학과공지';
