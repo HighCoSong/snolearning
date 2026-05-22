@@ -6,9 +6,10 @@ interface Props {
   webhookPath: string;
   extraBody?: Record<string, string>;
   onSuccess?: (result: string) => void;
+  onBase64?: (base64: string, fileName: string) => void;
 }
 
-export default function PdfUploader({ webhookPath, extraBody, onSuccess }: Props) {
+export default function PdfUploader({ webhookPath, extraBody, onSuccess, onBase64 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fileName, setFileName] = useState('');
@@ -29,6 +30,7 @@ export default function PdfUploader({ webhookPath, extraBody, onSuccess }: Props
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+      onBase64?.(base64, file.name);
       const res = await fetch(`/api/${webhookPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

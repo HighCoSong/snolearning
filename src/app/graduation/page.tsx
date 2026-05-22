@@ -1,9 +1,24 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, GraduationCap, ExternalLink } from 'lucide-react';
+import { ArrowLeft, GraduationCap, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
 import PdfUploader from '@/components/PdfUploader';
 import ResultBox from '@/components/ResultBox';
+
+const GRAD_CACHE_KEY = 'sno_grad_cache';
+
+function saveGradCache(result: string, dept: string, remainingSemesters: string, careerGoal: string) {
+  try {
+    localStorage.setItem(GRAD_CACHE_KEY, JSON.stringify({ result, dept, remainingSemesters, careerGoal }));
+  } catch { /* ignore */ }
+}
+
+function loadGradCache(): { result: string; dept: string; remainingSemesters: string; careerGoal?: string } | null {
+  try {
+    const raw = localStorage.getItem(GRAD_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
 
 const DEPT_INFO: Record<string, string> = {
   '컴퓨터과학전공': 'https://csweb.sookmyung.ac.kr/',
@@ -46,9 +61,9 @@ const DEPT_INFO: Record<string, string> = {
 };
 const DEPARTMENTS = Object.keys(DEPT_INFO);
 
-function saveUserProfile(dept: string, remainingSemesters: string) {
+function saveUserProfile(dept: string, remainingSemesters: string, careerGoal: string) {
   try {
-    localStorage.setItem('sno_user_profile', JSON.stringify({ department: dept, remaining_semesters: remainingSemesters }));
+    localStorage.setItem('sno_user_profile', JSON.stringify({ department: dept, remaining_semesters: remainingSemesters, career_goal: careerGoal }));
   } catch { /* ignore */ }
 }
 
@@ -56,10 +71,61 @@ export default function GraduationPage() {
   const [result, setResult] = useState('');
   const [dept, setDept] = useState('');
   const [remainingSemesters, setRemainingSemesters] = useState('4');
+  const [careerGoal, setCareerGoal] = useState('');
+  const [cachedBase64, setCachedBase64] = useState('');
+  const [cachedFileName, setCachedFileName] = useState('');
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [lastAnalyzedDept, setLastAnalyzedDept] = useState('');
+  const [lastAnalyzedSem, setLastAnalyzedSem] = useState('');
+  const [lastAnalyzedGoal, setLastAnalyzedGoal] = useState('');
+
+  // Restore cached result on mount
+  useEffect(() => {
+    const cache = loadGradCache();
+    if (cache) {
+      setResult(cache.result);
+      setDept(cache.dept);
+      setRemainingSemesters(cache.remainingSemesters);
+      setCareerGoal(cache.careerGoal || '');
+      setLastAnalyzedDept(cache.dept);
+      setLastAnalyzedSem(cache.remainingSemesters);
+      setLastAnalyzedGoal(cache.careerGoal || '');
+    }
+  }, []);
 
   function handleSuccess(text: string) {
     setResult(text);
-    if (dept) saveUserProfile(dept, remainingSemesters);
+    setLastAnalyzedDept(dept);
+    setLastAnalyzedSem(remainingSemesters);
+    setLastAnalyzedGoal(careerGoal);
+    if (dept) saveUserProfile(dept, remainingSemesters, careerGoal);
+    saveGradCache(text, dept, remainingSemesters, careerGoal);
+  }
+
+  const canReanalyze = !!cachedBase64 && !!result && (dept !== lastAnalyzedDept || remainingSemesters !== lastAnalyzedSem || careerGoal !== lastAnalyzedGoal);
+
+  async function handleReanalyze() {
+    if (!cachedBase64) return;
+    setReanalyzing(true);
+    try {
+      const res = await fetch('/api/graduation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_base64: cachedBase64,
+          file_name: cachedFileName,
+          department: dept,
+          remaining_semesters: remainingSemesters,
+          career_goal: careerGoal,
+        }),
+      });
+      if (res.ok) {
+        const text = await res.text();
+        handleSuccess(text);
+        saveGradCache(text, dept, remainingSemesters);
+      }
+    } catch { /* ignore */ }
+    setReanalyzing(false);
   }
 
   return (
@@ -136,12 +202,66 @@ export default function GraduationPage() {
           </div>
         </div>
 
+        {/* 희망 진로 입력 (피드백 반영: 수강 설계 근거) */}
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>희망 직무 / 진로</div>
+          <input 
+            type="text"
+            value={careerGoal}
+            onChange={e => setCareerGoal(e.target.value)}
+            placeholder="예: 백엔드 개발자, 데이터 분석가"
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: '8px',
+              border: `1px solid ${careerGoal ? '#1E40AF' : '#E2E8F0'}`,
+              background: 'white', fontSize: '13px',
+              color: '#0F172A', outline: 'none',
+            }}
+          />
+          <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '8px' }}>
+            진로에 맞춘 최적의 전공 선택 과목을 추천해 드립니다 (피드백 반영)
+          </div>
+        </div>
+
         <PdfUploader
           webhookPath="graduation"
-          extraBody={dept ? { department: dept, remaining_semesters: remainingSemesters } : { remaining_semesters: remainingSemesters }}
+          extraBody={{ department: dept, remaining_semesters: remainingSemesters, career_goal: careerGoal }}
           onSuccess={handleSuccess}
+          onBase64={(b64, name) => { setCachedBase64(b64); setCachedFileName(name); }}
         />
-        <ResultBox text={result} />
+
+        {canReanalyze && (
+          <button
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '10px',
+              background: reanalyzing ? '#E2E8F0' : '#1E40AF',
+              color: reanalyzing ? '#94A3B8' : 'white',
+              fontWeight: 600, fontSize: '14px', border: 'none',
+              cursor: reanalyzing ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            }}
+          >
+            {reanalyzing
+              ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> 재분석 중...</>
+              : <><RefreshCw size={16} /> 변경된 설정으로 재분석</>}
+          </button>
+        )}
+
+        <div style={{ position: 'relative' }}>
+          <ResultBox text={result} />
+          {result && (
+            <div style={{ marginTop: '12px', padding: '12px', background: '#FFF1F2', borderRadius: '10px', border: '1px solid #FECACA' }}>
+              <div style={{ fontSize: '11px', color: '#E11D48', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                ⚠️ 확인 바랍니다
+              </div>
+              <div style={{ fontSize: '11px', color: '#F43F5E', marginTop: '4px', lineHeight: 1.5 }}>
+                본 분석 결과는 Upstage AI가 작성한 참고용 자료입니다. 학과별 세부 규정(교직, 트랙 등)에 따라 실제와 다를 수 있으니 반드시 학사 시스템에서 최종 확인해 주세요. (피드백 반영)
+              </div>
+            </div>
+          )}
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, CheckCircle2, Loader2, LogIn, LogOut, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CheckCircle2, Loader2, LogIn, LogOut, Plus, ExternalLink } from 'lucide-react';
 import PdfUploader from '@/components/PdfUploader';
 
 interface CalEvent {
@@ -28,8 +28,22 @@ declare global {
   }
 }
 
-function toCalDate(iso: string) {
-  return new Date(iso).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+const TOKEN_KEY = 'sno_google_token';
+
+function saveToken(token: string, email: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, email, expiresAt: Date.now() + 3500 * 1000 }));
+  } catch { /* ignore */ }
+}
+
+function loadToken(): { token: string; email: string } | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const { token, email, expiresAt } = JSON.parse(raw);
+    if (expiresAt < Date.now()) { localStorage.removeItem(TOKEN_KEY); return null; }
+    return { token, email };
+  } catch { return null; }
 }
 
 function formatDate(dateStr: string) {
@@ -50,10 +64,15 @@ export default function SyllabusPage() {
   const [email, setEmail] = useState('');
   const [scriptReady, setScriptReady] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [addingId, setAddingId] = useState<number | null>(null);
+
+  // 저장된 토큰 복원
+  useEffect(() => {
+    const saved = loadToken();
+    if (saved) { setToken(saved.token); setEmail(saved.email); }
+  }, []);
 
   useEffect(() => {
     if (document.querySelector('script[src*="accounts.google.com/gsi"]')) {
@@ -77,10 +96,20 @@ export default function SyllabusPage() {
           const info = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
             headers: { Authorization: `Bearer ${res.access_token}` },
           }).then(r => r.json());
-          setEmail(info.email || 'Google 계정');
-        } catch { setEmail('Google 계정'); }
+          const em = info.email || 'Google 계정';
+          setEmail(em);
+          saveToken(res.access_token, em);
+        } catch {
+          setEmail('Google 계정');
+          saveToken(res.access_token, 'Google 계정');
+        }
       },
     }).requestAccessToken();
+  }
+
+  function handleLogout() {
+    setToken(''); setEmail('');
+    localStorage.removeItem(TOKEN_KEY);
   }
 
   async function addEventToCalendar(ev: CalEvent, idx: number) {
@@ -109,7 +138,7 @@ export default function SyllabusPage() {
     let count = 0;
     const newAdded = new Set(addedIds);
     for (let i = 0; i < events.length; i++) {
-      if (newAdded.has(i)) { count++; continue; }
+      if (newAdded.has(i)) { count++; setAddedCount(++count); continue; }
       try {
         await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
           method: 'POST',
@@ -122,12 +151,10 @@ export default function SyllabusPage() {
           }),
         });
         newAdded.add(i);
-        count++;
-        setAddedCount(count);
+        setAddedCount(++count);
       } catch { /* continue */ }
     }
     setAddedIds(newAdded);
-    setAdded(true);
     setAdding(false);
   }
 
@@ -135,9 +162,8 @@ export default function SyllabusPage() {
     try {
       const data = JSON.parse(raw);
       setEvents(data.events || []);
-      setAdded(false);
-      setAddedCount(0);
       setAddedIds(new Set());
+      setAddedCount(0);
     } catch { setEvents([]); }
   }
 
@@ -161,7 +187,7 @@ export default function SyllabusPage() {
       </div>
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {/* Google Login */}
+        {/* Google 계정 */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>Google 캘린더 계정</div>
           {token ? (
@@ -173,9 +199,14 @@ export default function SyllabusPage() {
                   <div style={{ fontSize: '11px', color: '#64748B' }}>연결됨</div>
                 </div>
               </div>
-              <button onClick={() => { setToken(''); setEmail(''); setAdded(false); }} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '12px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>
-                <LogOut size={12} /> 로그아웃
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E40AF', textDecoration: 'none' }}>
+                  <ExternalLink size={11} /> 캘린더 열기
+                </a>
+                <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '12px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>
+                  <LogOut size={12} /> 로그아웃
+                </button>
+              </div>
             </div>
           ) : (
             <button onClick={handleGoogleLogin} disabled={!scriptReady} style={{ width: '100%', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#0F172A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -192,7 +223,7 @@ export default function SyllabusPage() {
 
         <PdfUploader webhookPath="syllabus" onSuccess={handleSuccess} />
 
-        {/* Add All Button */}
+        {/* 전체 추가 버튼 */}
         {events.length > 0 && token && !allAdded && (
           <button
             onClick={addAllToCalendar}
@@ -211,18 +242,28 @@ export default function SyllabusPage() {
           </button>
         )}
 
-
+        {/* 등록 완료 + 캘린더 바로가기 */}
         {allAdded && events.length > 0 && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <CheckCircle2 size={24} color="#16A34A" />
-            <div>
-              <div style={{ fontWeight: 600, color: '#15803D', fontSize: '14px' }}>캘린더 등록 완료!</div>
-              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{events.length}개 일정이 {email} 캘린더에 추가됐어요</div>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <CheckCircle2 size={24} color="#16A34A" />
+              <div>
+                <div style={{ fontWeight: 600, color: '#15803D', fontSize: '14px' }}>캘린더 등록 완료!</div>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{events.length}개 일정이 추가됐어요</div>
+              </div>
             </div>
+            <a
+              href="https://calendar.google.com"
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: '#16A34A', color: 'white', textDecoration: 'none', flexShrink: 0 }}
+            >
+              <ExternalLink size={13} /> Google 캘린더
+            </a>
           </div>
         )}
 
-        {/* Event Preview List */}
+        {/* 일정 목록 */}
         {events.length > 0 && (
           <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

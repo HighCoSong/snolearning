@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Bell, RefreshCw, Loader2, ExternalLink, CalendarDays, CheckCircle2, LogIn, LogOut, Plus } from 'lucide-react';
+import { ArrowLeft, Bell, RefreshCw, Loader2, ExternalLink, CalendarDays, CheckCircle2, LogIn, LogOut, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const DEPT_BY_COLLEGE: { college: string; depts: string[] }[] = [
   { college: '문과대학', depts: ['한국어문학부', '역사문화학과', '프랑스언어·문화학과', '중어중문학부', '독일언어·문화학과', '일본학과', '문헌정보학과', '문화관광학전공', '르꼬르동블루외식경영전공', '교육학부'] },
@@ -12,17 +12,50 @@ const DEPT_BY_COLLEGE: { college: string; depts: string[] }[] = [
   { college: '법과대학', depts: ['법학부'] },
   { college: '글로벌서비스학부', depts: ['글로벌협력전공', '앙트러프러너십전공', '융합국제학부', '한류국제학부'] },
 ];
-const DEPARTMENTS = DEPT_BY_COLLEGE.flatMap(c => c.depts);
 const CATEGORIES = ['장학금', '취업/인턴십', '공모전', '행사/프로그램', '교환학생', '기타'];
 
 const CATEGORY_KEYS: Record<string, string[]> = {
-  '장학금': ['장학', '장학금', '지원금'],
-  '취업/인턴십': ['취업', '인턴', '채용', '직무'],
-  '공모전': ['공모전', '대회', '경진', '공모'],
-  '행사/프로그램': ['행사', '프로그램', '특강', '세미나', '설명회', '캠프', '워크숍', '비교과', '간담회', 'colloquium'],
-  '교환학생': ['교환학생', '해외', '유학', '글로벌'],
+  '장학금': ['장학', '장학금', '지원금', '장학생'],
+  '취업/인턴십': ['취업', '인턴', '채용', '직무', '구인', '알바'],
+  '공모전': ['공모전', '대회', '경진', '공모', '콘테스트', '해커톤'],
+  '행사/프로그램': ['행사', '프로그램', '특강', '세미나', '설명회', '캠프', '워크숍', '비교과', '간담회', 'colloquium', '포럼', '강연', '멘토'],
+  '교환학생': ['교환학생', '해외', '유학', '글로벌', '교환', '파견'],
   '기타': [],
 };
+
+const DEPT_SUBDOMAIN: Record<string, string> = {
+  '컴퓨터과학전공': 'csweb', '데이터사이언스전공': 'ds', '인공지능공학부': 'aie',
+  '수학과': 'math', '통계학과': 'stat', '화학과': 'chem', '생명시스템학부': 'bio',
+  '화공생명공학부': 'chembioe', '지능형전자시스템학부': 'electro', '신소재물리학부': 'physics',
+  '기계시스템학부': 'mse', '식품영양학과': 'fn', '의류학과': 'cloth',
+  '아동복지학부': 'childwelfare', '가족자원경영학과': 'family', '영어영문학부': 'english',
+  '한국어문학부': 'korean', '역사문화학과': 'history', '문헌정보학과': 'lis',
+  '프랑스언어·문화학과': 'french', '중어중문학부': 'chinese', '독일언어·문화학과': 'german',
+  '일본학과': 'japan', '경제학부': 'econ', '법학부': 'law', '정치외교학과': 'politics',
+  '행정학과': 'pa', '홍보광고학과': 'prad', '소비자경제학과': 'conecon',
+  '사회심리학과': 'socpsy', '교육학부': 'edu', '글로벌협력전공': 'global',
+  '앙트러프러너십전공': 'global', '융합국제학부': 'hallyu', '한류국제학부': 'hallyu',
+};
+
+function resolveUrl(url: string, source?: string): string {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  if (source?.startsWith('학과공지(')) {
+    const dept = source.slice(5, -1);
+    const sub = DEPT_SUBDOMAIN[dept];
+    if (sub) return `https://${sub}.sookmyung.ac.kr${url}`;
+  }
+  if (source === 'SW중심대학') return `https://sw.sookmyung.ac.kr${url}`;
+  return '';
+}
+
+function getSourceGroup(source: string): string {
+  if (source === '비교과프로그램') return '비교과';
+  if (source === 'SW중심대학') return 'SW중심대학';
+  if (source.startsWith('학과공지')) return '학과공지';
+  if (source === '학사공지') return '기타';
+  return '기타';
+}
 
 interface NoticeItem {
   title: string;
@@ -39,6 +72,24 @@ declare global {
   }
 }
 
+const TOKEN_KEY = 'sno_google_token';
+
+function saveToken(token: string, email: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, email, expiresAt: Date.now() + 3500 * 1000 }));
+  } catch { /* ignore */ }
+}
+
+function loadToken(): { token: string; email: string } | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const { token, email, expiresAt } = JSON.parse(raw);
+    if (expiresAt < Date.now()) { localStorage.removeItem(TOKEN_KEY); return null; }
+    return { token, email };
+  } catch { return null; }
+}
+
 function formatKoreanDate(iso: string): string {
   try {
     const d = new Date(iso);
@@ -46,9 +97,7 @@ function formatKoreanDate(iso: string): string {
     const m = d.getMonth() + 1;
     const day = d.getDate();
     const weekDay = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
-    const h = d.getHours().toString().padStart(2, '0');
-    const min = d.getMinutes().toString().padStart(2, '0');
-    return `${m}/${day} (${weekDay}) ${h}:${min}`;
+    return `${m}/${day} (${weekDay})`;
   } catch { return iso; }
 }
 
@@ -73,10 +122,29 @@ function Chip({ label, selected, color, onClick }: { label: string; selected: bo
   );
 }
 
+const CAT_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+  '장학금': { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' },
+  '취업/인턴십': { bg: '#DBEAFE', text: '#1D4ED8', border: '#BFDBFE' },
+  '공모전': { bg: '#EDE9FE', text: '#6D28D9', border: '#DDD6FE' },
+  '행사/프로그램': { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
+  '교환학생': { bg: '#FFE4E6', text: '#BE123C', border: '#FECDD3' },
+  '기타': { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' },
+};
+
+function CategoryTag({ cat }: { cat: string }) {
+  const color = CAT_COLOR[cat] || CAT_COLOR['기타'];
+  return (
+    <span style={{ fontSize: '10px', fontWeight: 600, color: color.text, background: color.bg, border: `1px solid ${color.border}`, borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+      {cat}
+    </span>
+  );
+}
+
 function NoticeCard({ item, token, onAddCal }: { item: NoticeItem; token: string; onAddCal: (item: NoticeItem) => Promise<void> }) {
   const [added, setAdded] = useState(false);
   const [adding, setAdding] = useState(false);
   const hasDate = !!item.date && item.date !== '날짜미상';
+  const cat = categorize(item);
 
   async function handleAdd() {
     setAdding(true);
@@ -86,19 +154,24 @@ function NoticeCard({ item, token, onAddCal }: { item: NoticeItem; token: string
   }
 
   return (
-    <div style={{ background: 'white', borderRadius: '10px', padding: '12px 14px', border: '1px solid #F1F5F9', marginBottom: '8px' }}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-        <span style={{ fontSize: '10px', fontWeight: 600, color: '#D97706', background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '1px' }}>
-          {item.source || '공지'}
-        </span>
+    <div style={{ padding: '12px 14px', borderBottom: '1px solid #F8FAFC' }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
+            <CategoryTag cat={cat} />
+            {item.source?.startsWith('학과공지') && (
+              <span style={{ fontSize: '10px', color: '#94A3B8', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                {item.source.replace('학과공지(', '').replace(')', '')}
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: '13px', fontWeight: 500, color: '#0F172A', lineHeight: 1.5 }}>{item.title}</div>
           {hasDate && (
             <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '3px' }}>{formatKoreanDate(item.date!)}</div>
           )}
           <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-            {item.url && (
-              <a href={item.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, color: '#1E40AF', textDecoration: 'none', background: '#EFF6FF', borderRadius: '6px', padding: '4px 10px' }}>
+            {resolveUrl(item.url || '', item.source) && (
+              <a href={resolveUrl(item.url || '', item.source)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, color: '#1E40AF', textDecoration: 'none', background: '#EFF6FF', borderRadius: '6px', padding: '4px 10px' }}>
                 <ExternalLink size={11} /> 공지 보기
               </a>
             )}
@@ -121,92 +194,99 @@ function NoticeCard({ item, token, onAddCal }: { item: NoticeItem; token: string
   );
 }
 
-function ResultView({ items, analysis, token, onAddCal }: { items: NoticeItem[]; analysis: string; token: string; onAddCal: (item: NoticeItem) => Promise<void> }) {
-  const byCategory: Record<string, NoticeItem[]> = {};
+const SOURCE_TABS = ['학과공지', '비교과', 'SW중심대학', '기타'];
+const SOURCE_TAB_LABEL: Record<string, string> = {
+  '학과공지': '학과',
+  '비교과': '비교과',
+  'SW중심대학': 'SW중심대학',
+  '기타': '기타',
+};
+
+function ResultView({ items, token, onAddCal }: { items: NoticeItem[]; token: string; onAddCal: (item: NoticeItem) => Promise<void> }) {
+  const [tab, setTab] = useState('학과공지');
+  const byGroup: Record<string, NoticeItem[]> = {};
   for (const item of items) {
-    const cat = categorize(item);
-    if (!byCategory[cat]) byCategory[cat] = [];
-    byCategory[cat].push(item);
+    const group = getSourceGroup(item.source || '');
+    if (!byGroup[group]) byGroup[group] = [];
+    byGroup[group].push(item);
   }
-  const availableTabs = ['전체', ...CATEGORIES.filter(c => byCategory[c]?.length > 0)];
-  const [tab, setTab] = useState('전체');
-  const displayItems = tab === '전체' ? items : (byCategory[tab] || []);
+  const availableTabs = SOURCE_TABS.filter(g => (byGroup[g]?.length ?? 0) > 0);
+  // Auto-select first available tab if current is empty
+  const activeTab = byGroup[tab]?.length > 0 ? tab : (availableTabs[0] || tab);
+  const displayItems = byGroup[activeTab] || [];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {analysis && (
-        <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0', whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: 1.6 }}>
-          <div style={{ fontWeight: 600, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>✨</span> AI 맞춤 추천
-          </div>
-          {analysis}
-        </div>
-      )}
-      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-        <div className="tab-bar" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9' }}>
-        {availableTabs.map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: '10px 8px', fontSize: '11px', fontWeight: tab === t ? 600 : 400,
-            color: tab === t ? '#1E40AF' : '#94A3B8',
-            background: 'none', border: 'none',
-            borderBottom: `2px solid ${tab === t ? '#1E40AF' : 'transparent'}`,
-            cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 'fit-content',
-          }}>
-            {t}
-            {t !== '전체' && byCategory[t] && <span style={{ marginLeft: '3px', fontSize: '10px', color: tab === t ? '#1E40AF' : '#CBD5E1' }}>{byCategory[t].length}</span>}
-          </button>
-        ))}
+    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+      <div className="tab-bar" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid #F1F5F9' }}>
+        {SOURCE_TABS.map(t => {
+          const count = byGroup[t]?.length ?? 0;
+          const isActive = t === activeTab;
+          return (
+            <button key={t} onClick={() => setTab(t)} style={{
+              flex: 1, padding: '11px 8px', fontSize: '12px', fontWeight: isActive ? 600 : 400,
+              color: isActive ? '#1E40AF' : count === 0 ? '#CBD5E1' : '#94A3B8',
+              background: 'none', border: 'none',
+              borderBottom: `2px solid ${isActive ? '#1E40AF' : 'transparent'}`,
+              cursor: count === 0 ? 'default' : 'pointer', whiteSpace: 'nowrap', minWidth: 'fit-content',
+            }}>
+              {SOURCE_TAB_LABEL[t]}
+              {count > 0 && <span style={{ marginLeft: '3px', fontSize: '10px', color: isActive ? '#1E40AF' : '#CBD5E1' }}>{count}</span>}
+            </button>
+          );
+        })}
       </div>
-      <div style={{ padding: '12px', maxHeight: '65vh', overflowY: 'auto' }}>
+      <div style={{ maxHeight: '65vh', overflowY: 'auto' }}>
         {displayItems.length > 0
           ? displayItems.map((item, i) => <NoticeCard key={i} item={item} token={token} onAddCal={onAddCal} />)
-          : <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '20px' }}>관련 공지가 없습니다</div>
-        }
-      </div>
+          : <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '30px' }}>공지가 없습니다</div>}
       </div>
     </div>
   );
 }
-
-interface UserProfile { department: string; remaining_semesters: string; }
 
 export default function NoticePage() {
   const [depts, setDepts] = useState<string[]>([]);
   const [cats, setCats] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<NoticeItem[]>([]);
-  const [analysis, setAnalysis] = useState('');
   const [error, setError] = useState('');
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [scriptReady, setScriptReady] = useState(false);
   const [cachedAt, setCachedAt] = useState<Date | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   const didFetch = useRef(false);
 
+  // 저장된 토큰 + 프로필 복원
   useEffect(() => {
+    const saved = loadToken();
+    if (saved) { setToken(saved.token); setEmail(saved.email); }
+
     try {
       const raw = localStorage.getItem('sno_user_profile');
-      if (raw) setUserProfile(JSON.parse(raw));
+      if (raw) {
+        const profile = JSON.parse(raw);
+        if (profile.department) setDepts([profile.department]);
+      }
     } catch { /* ignore */ }
   }, []);
 
   const CACHE_KEY = 'notice_cache';
-  const CACHE_TTL = 30 * 60 * 1000; // 30분
+  const CACHE_TTL = 30 * 60 * 1000;
 
   function loadCache() {
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (!raw) return false;
-      const { items: i, analysis: a, ts } = JSON.parse(raw);
+      const { items: i, ts } = JSON.parse(raw);
       if (Date.now() - ts > CACHE_TTL) return false;
-      setItems(i); setAnalysis(a); setCachedAt(new Date(ts));
+      setItems(i); setCachedAt(new Date(ts));
       return true;
     } catch { return false; }
   }
 
-  function saveCache(i: NoticeItem[], a: string) {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ items: i, analysis: a, ts: Date.now() })); } catch { /* ignore */ }
+  function saveCache(i: NoticeItem[]) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ items: i, ts: Date.now() })); } catch { /* ignore */ }
   }
 
   useEffect(() => {
@@ -227,16 +307,26 @@ export default function NoticePage() {
         setToken(res.access_token);
         try {
           const info = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', { headers: { Authorization: `Bearer ${res.access_token}` } }).then(r => r.json());
-          setEmail(info.email || 'Google 계정');
-        } catch { setEmail('Google 계정'); }
+          const em = info.email || 'Google 계정';
+          setEmail(em);
+          saveToken(res.access_token, em);
+        } catch {
+          setEmail('Google 계정');
+          saveToken(res.access_token, 'Google 계정');
+        }
       },
     }).requestAccessToken();
+  }
+
+  function handleLogout() {
+    setToken(''); setEmail('');
+    localStorage.removeItem(TOKEN_KEY);
   }
 
   async function addToCalendar(item: NoticeItem) {
     if (!token || !item.date) return;
     const start = new Date(item.date);
-    const end = new Date(start.getTime() + 60 * 60 * 1000); // +1시간
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
     await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -257,28 +347,21 @@ export default function NoticePage() {
     if (useCache && loadCache()) return;
     setLoading(true); setError('');
     try {
-      const body: Record<string, unknown> = { departments, categories };
-      if (userProfile?.department) {
-        body.major = userProfile.department;
-        body.remaining_semesters = userProfile.remaining_semesters;
-      }
       const res = await fetch('/api/notice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ departments, categories }),
       });
       if (!res.ok) throw new Error(await res.text());
       const text = await res.text();
       try {
         const json = JSON.parse(text);
         const newItems = json.items || [];
-        const newAnalysis = json.analysis || '';
         setItems(newItems);
-        setAnalysis(newAnalysis);
-        saveCache(newItems, newAnalysis);
+        saveCache(newItems);
         setCachedAt(new Date());
       } catch {
-        setAnalysis(text);
+        setItems([]);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '오류가 발생했습니다');
@@ -310,31 +393,17 @@ export default function NoticePage() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-            <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: loading ? 'default' : 'pointer' }}>
+            <button onClick={() => { try { localStorage.removeItem(CACHE_KEY); } catch {} fetchNotices(depts, cats); }} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: loading ? 'default' : 'pointer' }}>
               {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
               새로고침
             </button>
-            {cachedAt && !loading && <div style={{ fontSize: '10px', color: '#CBD5E1' }}>{cachedAt.getHours()}:{cachedAt.getMinutes().toString().padStart(2,'0')} 기준</div>}
+            {cachedAt && !loading && <div style={{ fontSize: '10px', color: '#CBD5E1' }}>{cachedAt.getHours()}:{cachedAt.getMinutes().toString().padStart(2, '0')} 기준</div>}
           </div>
         </div>
       </div>
 
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* 개인화 프로필 배지 */}
-        {userProfile?.department && (
-          <div style={{ background: '#EFF6FF', borderRadius: '10px', padding: '10px 14px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px' }}>🎓</span>
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1E40AF' }}>{userProfile.department}</div>
-                <div style={{ fontSize: '11px', color: '#3B82F6' }}>남은 학기 {userProfile.remaining_semesters}학기 · 졸업요건 분석 기반 맞춤 공지</div>
-              </div>
-            </div>
-            <button onClick={() => { localStorage.removeItem('sno_user_profile'); setUserProfile(null); }} style={{ fontSize: '11px', color: '#93C5FD', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>×</button>
-          </div>
-        )}
-
-        {/* Google Login */}
+        {/* Google 캘린더 연동 */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '12px 16px', border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#0F172A', marginBottom: '8px' }}>
             <CalendarDays size={12} style={{ display: 'inline', marginRight: '4px' }} />
@@ -346,9 +415,14 @@ export default function NoticePage() {
                 <CheckCircle2 size={14} color="#16A34A" />
                 <span style={{ fontSize: '12px', color: '#0F172A' }}>{email}</span>
               </div>
-              <button onClick={() => { setToken(''); setEmail(''); }} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>
-                <LogOut size={11} /> 로그아웃
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 500, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E40AF', textDecoration: 'none' }}>
+                  <ExternalLink size={11} /> 캘린더 열기
+                </a>
+                <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>
+                  <LogOut size={11} /> 로그아웃
+                </button>
+              </div>
             </div>
           ) : (
             <button onClick={handleGoogleLogin} disabled={!scriptReady} style={{ width: '100%', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, border: '1px solid #E2E8F0', background: 'white', color: '#0F172A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -358,34 +432,60 @@ export default function NoticePage() {
           )}
         </div>
 
-        {/* Filters */}
-        <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '10px' }}>학과</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {DEPT_BY_COLLEGE.map(({ college, depts: ds }) => (
-                <div key={college}>
-                  <div style={{ fontSize: '10px', fontWeight: 600, color: '#94A3B8', marginBottom: '6px', letterSpacing: '0.05em' }}>{college}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {ds.map(d => <Chip key={d} label={d} selected={depts.includes(d)} color="#1E40AF" onClick={() => toggle(depts, d, setDepts)} />)}
-                  </div>
+        {/* 필터 (접기/펼치기) */}
+        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <button
+            onClick={() => setFilterOpen(o => !o)}
+            style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>필터 설정</span>
+              {activeFilterCount > 0 && (
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#1E40AF', background: '#EFF6FF', borderRadius: '10px', padding: '2px 8px' }}>
+                  {activeFilterCount}개 선택
+                </span>
+              )}
+            </div>
+            {filterOpen ? <ChevronUp size={16} color="#94A3B8" /> : <ChevronDown size={16} color="#94A3B8" />}
+          </button>
+
+          {filterOpen && (
+            <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid #F1F5F9' }}>
+              {/* 학과 필터 */}
+              <div style={{ paddingTop: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '10px' }}>학과</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {DEPT_BY_COLLEGE.map(({ college, depts: ds }) => (
+                    <div key={college}>
+                      <div style={{ fontSize: '10px', fontWeight: 600, color: '#94A3B8', marginBottom: '6px', letterSpacing: '0.05em' }}>{college}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                        {ds.map(d => <Chip key={d} label={d} selected={depts.includes(d)} color="#1E40AF" onClick={() => toggle(depts, d, setDepts)} />)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* 카테고리 필터 */}
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '8px' }}>카테고리</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {CATEGORIES.map(c => <Chip key={c} label={c} selected={cats.includes(c)} color="#D97706" onClick={() => toggle(cats, c, setCats)} />)}
+                </div>
+              </div>
+
+              {/* 조회 버튼 */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { fetchNotices(depts, cats); setFilterOpen(false); }} disabled={loading} style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: loading ? '#E2E8F0' : '#1E40AF', color: loading ? '#94A3B8' : 'white', border: 'none', cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Bell size={14} />}
+                  공지 조회하기
+                </button>
+                {activeFilterCount > 0 && (
+                  <button onClick={() => { setDepts([]); setCats([]); fetchNotices([], []); }} style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '13px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>초기화</button>
+                )}
+              </div>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', letterSpacing: '0.04em', marginBottom: '8px' }}>카테고리</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {CATEGORIES.map(c => <Chip key={c} label={c} selected={cats.includes(c)} color="#D97706" onClick={() => toggle(cats, c, setCats)} />)}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => fetchNotices(depts, cats)} disabled={loading} style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: loading ? '#E2E8F0' : '#1E40AF', color: loading ? '#94A3B8' : 'white', border: 'none', cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                {loading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Bell size={14} />}
-                공지 조회하기
-              </button>
-              {activeFilterCount > 0 && <button onClick={() => { setDepts([]); setCats([]); fetchNotices([], []); }} style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '13px', border: '1px solid #E2E8F0', background: 'white', color: '#64748B', cursor: 'pointer' }}>초기화</button>}
-          </div>
+          )}
         </div>
 
         {error && <div style={{ padding: '10px 14px', background: '#FFF1F2', borderRadius: '8px', color: '#E11D48', fontSize: '13px' }}>{error}</div>}
@@ -398,11 +498,10 @@ export default function NoticePage() {
         )}
 
         {items.length > 0 && !loading && (
-          <ResultView 
-            items={cats.length > 0 ? items.filter(item => cats.includes(categorize(item))) : items} 
-            analysis={analysis} 
-            token={token} 
-            onAddCal={addToCalendar} 
+          <ResultView
+            items={items}
+            token={token}
+            onAddCal={addToCalendar}
           />
         )}
       </div>
