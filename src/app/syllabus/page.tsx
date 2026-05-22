@@ -90,6 +90,7 @@ export default function SyllabusPage() {
     window.google.accounts.oauth2.initTokenClient({
       client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
       scope: 'https://www.googleapis.com/auth/calendar.events openid email profile',
+      prompt: 'select_account',
       callback: async (res) => {
         setToken(res.access_token);
         try {
