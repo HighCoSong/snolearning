@@ -207,7 +207,7 @@ const SOURCE_TAB_LABEL: Record<string, string> = {
   '기타': '기타',
 };
 
-function ResultView({ items, token, onAddCal }: { items: NoticeItem[]; token: string; onAddCal: (item: NoticeItem) => Promise<void> }) {
+function ResultView({ items, depts, token, onAddCal, onOpenFilter }: { items: NoticeItem[]; depts: string[]; token: string; onAddCal: (item: NoticeItem) => Promise<void>; onOpenFilter: () => void }) {
   const [tab, setTab] = useState('학과공지');
   const byGroup: Record<string, NoticeItem[]> = {};
   for (const item of items) {
@@ -215,9 +215,8 @@ function ResultView({ items, token, onAddCal }: { items: NoticeItem[]; token: st
     if (!byGroup[group]) byGroup[group] = [];
     byGroup[group].push(item);
   }
-  const availableTabs = SOURCE_TABS.filter(g => (byGroup[g]?.length ?? 0) > 0);
-  // Auto-select first available tab if current is empty
-  const activeTab = byGroup[tab]?.length > 0 ? tab : (availableTabs[0] || tab);
+  
+  const activeTab = tab;
   const displayItems = byGroup[activeTab] || [];
 
   return (
@@ -229,10 +228,10 @@ function ResultView({ items, token, onAddCal }: { items: NoticeItem[]; token: st
           return (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: '11px 8px', fontSize: '12px', fontWeight: isActive ? 600 : 400,
-              color: isActive ? '#1E40AF' : count === 0 ? '#CBD5E1' : '#94A3B8',
+              color: isActive ? '#1E40AF' : '#94A3B8',
               background: 'none', border: 'none',
               borderBottom: `2px solid ${isActive ? '#1E40AF' : 'transparent'}`,
-              cursor: count === 0 ? 'default' : 'pointer', whiteSpace: 'nowrap', minWidth: 'fit-content',
+              cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 'fit-content',
             }}>
               {SOURCE_TAB_LABEL[t]}
               {count > 0 && <span style={{ marginLeft: '3px', fontSize: '10px', color: isActive ? '#1E40AF' : '#CBD5E1' }}>{count}</span>}
@@ -241,9 +240,16 @@ function ResultView({ items, token, onAddCal }: { items: NoticeItem[]; token: st
         })}
       </div>
       <div style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-        {displayItems.length > 0
-          ? displayItems.map((item, i) => <NoticeCard key={i} item={item} token={token} onAddCal={onAddCal} />)
-          : <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '30px' }}>공지가 없습니다</div>}
+        {activeTab === '학과공지' && depts.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#64748B', marginBottom: '12px' }}>학과를 선택하면 최신 학과 공지를 모아볼 수 있습니다</div>
+            <button onClick={onOpenFilter} style={{ padding: '8px 16px', borderRadius: '8px', background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>학과 선택하기</button>
+          </div>
+        ) : displayItems.length > 0 ? (
+          displayItems.map((item, i) => <NoticeCard key={i} item={item} token={token} onAddCal={onAddCal} />)
+        ) : (
+          <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '30px' }}>관련 공지가 없습니다</div>
+        )}
       </div>
     </div>
   );
@@ -505,9 +511,11 @@ export default function NoticePage() {
 
         {items.length > 0 && !loading && (
           <ResultView
-            items={items}
+            items={cats.length > 0 ? items.filter(item => cats.includes(categorize(item))) : items}
+            depts={depts}
             token={token}
             onAddCal={addToCalendar}
+            onOpenFilter={() => setFilterOpen(true)}
           />
         )}
       </div>
