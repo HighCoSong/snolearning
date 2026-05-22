@@ -132,7 +132,6 @@ const CAT_COLOR: Record<string, { bg: string; text: string; border: string }> = 
   '취업/인턴십': { bg: '#DBEAFE', text: '#1D4ED8', border: '#BFDBFE' },
   '공모전': { bg: '#EDE9FE', text: '#6D28D9', border: '#DDD6FE' },
   '행사/프로그램': { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' },
-  '교환학생': { bg: '#FFE4E6', text: '#BE123C', border: '#FECDD3' },
   '기타': { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' },
 };
 
@@ -199,12 +198,11 @@ function NoticeCard({ item, token, onAddCal }: { item: NoticeItem; token: string
   );
 }
 
-const SOURCE_TABS = ['학과공지', '비교과', 'SW중심대학', '기타'];
+const SOURCE_TABS = ['학과공지', '비교과', 'SW중심대학'];
 const SOURCE_TAB_LABEL: Record<string, string> = {
   '학과공지': '학과',
   '비교과': '비교과',
   'SW중심대학': 'SW중심대학',
-  '기타': '기타',
 };
 
 function ResultView({ items, depts, token, onAddCal, onOpenFilter }: { items: NoticeItem[]; depts: string[]; token: string; onAddCal: (item: NoticeItem) => Promise<void>; onOpenFilter: () => void }) {
