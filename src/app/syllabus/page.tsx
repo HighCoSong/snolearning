@@ -68,6 +68,7 @@ export default function SyllabusPage() {
   const [addedCount, setAddedCount] = useState(0);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [addingId, setAddingId] = useState<number | null>(null);
+  const [calError, setCalError] = useState('');
 
   // 저장된 토큰 복원
   useEffect(() => {
@@ -114,47 +115,64 @@ export default function SyllabusPage() {
     localStorage.removeItem(TOKEN_KEY);
   }
 
+  async function postCalEvent(ev: { title: string; description?: string; startDateTime: string; endDateTime: string }) {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        summary: ev.title,
+        description: ev.description || '',
+        start: { dateTime: ev.startDateTime },
+        end: { dateTime: ev.endDateTime },
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${errBody}`);
+    }
+  }
+
   async function addEventToCalendar(ev: CalEvent, idx: number) {
     if (!token) return;
+    setCalError('');
     setAddingId(idx);
     try {
-      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: ev.title,
-          description: ev.description || '',
-          start: { dateTime: ev.startDateTime, timeZone: 'Asia/Seoul' },
-          end: { dateTime: ev.endDateTime, timeZone: 'Asia/Seoul' },
-        }),
-      });
+      await postCalEvent(ev);
       setAddedIds(prev => new Set([...prev, idx]));
-    } catch { /* ignore */ }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith('401')) {
+        handleLogout();
+        setCalError('토큰이 만료됐어요. 다시 로그인해 주세요.');
+      } else {
+        setCalError(`등록 실패: ${msg.slice(0, 80)}`);
+      }
+    }
     setAddingId(null);
   }
 
   async function addAllToCalendar() {
     if (!token || events.length === 0) return;
+    setCalError('');
     setAdding(true);
     setAddedCount(0);
     let count = 0;
     const newAdded = new Set(addedIds);
     for (let i = 0; i < events.length; i++) {
-      if (newAdded.has(i)) { count++; setAddedCount(++count); continue; }
+      if (newAdded.has(i)) { setAddedCount(++count); continue; }
       try {
-        await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            summary: events[i].title,
-            description: events[i].description || '',
-            start: { dateTime: events[i].startDateTime, timeZone: 'Asia/Seoul' },
-            end: { dateTime: events[i].endDateTime, timeZone: 'Asia/Seoul' },
-          }),
-        });
+        await postCalEvent(events[i]);
         newAdded.add(i);
         setAddedCount(++count);
-      } catch { /* continue */ }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.startsWith('401')) {
+          handleLogout();
+          setCalError('토큰이 만료됐어요. 다시 로그인해 주세요.');
+          break;
+        }
+        setCalError(`일부 등록 실패: ${msg.slice(0, 80)}`);
+      }
     }
     setAddedIds(newAdded);
     setAdding(false);
@@ -224,6 +242,13 @@ export default function SyllabusPage() {
         </div>
 
         <PdfUploader webhookPath="syllabus" onSuccess={handleSuccess} />
+
+        {/* 캘린더 에러 메시지 */}
+        {calError && (
+          <div style={{ background: '#FFF1F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 14px', fontSize: '12px', color: '#E11D48', fontWeight: 500 }}>
+            {calError}
+          </div>
+        )}
 
         {/* 전체 추가 버튼 */}
         {events.length > 0 && token && !allAdded && (

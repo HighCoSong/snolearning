@@ -49,10 +49,10 @@ function resolveUrl(url: string, source?: string): string {
 }
 
 function getSourceGroup(source: string): string {
-  if (source.includes('비교과')) return '비교과';
-  if (source.includes('SW중심대학')) return 'SW중심대학';
-  if (source.includes('학과공지')) return '학과공지';
-  return '기타';
+  const s = source.toLowerCase();
+  if (s.includes('비교과')) return '비교과';
+  if (s.includes('sw')) return 'SW중심대학';
+  return '학과공지';
 }
 
 interface NoticeItem {
@@ -109,7 +109,7 @@ function categorize(item: NoticeItem): string {
   if (CATEGORY_KEYS['공모전'].some(kw => text.includes(kw.toLowerCase()))) return '공모전';
   if (CATEGORY_KEYS['행사/프로그램'].some(kw => text.includes(kw.toLowerCase()))) return '행사/프로그램';
   
-  if (source.includes('비교과') || source.includes('SW중심대학')) return '행사/프로그램';
+  if (source.includes('비교과') || source.toLowerCase().includes('sw')) return '행사/프로그램';
   
   return '기타';
 }
