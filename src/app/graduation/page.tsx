@@ -20,6 +20,17 @@ function loadGradCache(): { result: string; dept: string; remainingSemesters: st
   } catch { return null; }
 }
 
+/** result 텍스트를 학업/취업 두 파트로 분리 */
+function splitResult(text: string): { academic: string; career: string } {
+  const marker = '## 🎯 취준 역량 분석';
+  const idx = text.indexOf(marker);
+  if (idx === -1) return { academic: text, career: '' };
+  return {
+    academic: text.slice(0, idx).trimEnd(),
+    career: text.slice(idx).trimStart(),
+  };
+}
+
 const DEPT_INFO: Record<string, string> = {
   '컴퓨터과학전공': 'https://csweb.sookmyung.ac.kr/',
   '데이터사이언스전공': 'https://ds.sookmyung.ac.kr/',
@@ -67,6 +78,8 @@ function saveUserProfile(dept: string, remainingSemesters: string, careerGoal: s
   } catch { /* ignore */ }
 }
 
+type Tab = '학업' | '취업';
+
 export default function GraduationPage() {
   const [result, setResult] = useState('');
   const [dept, setDept] = useState('');
@@ -79,17 +92,24 @@ export default function GraduationPage() {
   const [lastAnalyzedDept, setLastAnalyzedDept] = useState('');
   const [lastAnalyzedSem, setLastAnalyzedSem] = useState('');
   const [lastAnalyzedGoal, setLastAnalyzedGoal] = useState('');
+  const [activeTab, setActiveTab] = useState<Tab>('학업');
 
-  // Clear cache on mount so results don't persist across refreshes
   useEffect(() => {
     try { localStorage.removeItem(GRAD_CACHE_KEY); } catch { /* ignore */ }
   }, []);
 
-  function handleSuccess(text: string) {
-    if (!text?.trim()) {
+  function handleSuccess(raw: string) {
+    if (!raw?.trim()) {
       setAnalysisError('분석 결과를 받지 못했습니다. n8n 워크플로우가 실행 중인지 확인해주세요.');
       return;
     }
+    // JSON 응답 파싱
+    let text = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.result) text = parsed.result;
+    } catch { /* 텍스트 그대로 사용 */ }
+
     setAnalysisError('');
     setResult(text);
     setLastAnalyzedDept(dept);
@@ -119,11 +139,13 @@ export default function GraduationPage() {
       if (res.ok) {
         const text = await res.text();
         handleSuccess(text);
-        saveGradCache(text, dept, remainingSemesters, careerGoal);
       }
     } catch { /* ignore */ }
     setReanalyzing(false);
   }
+
+  const { academic, career } = splitResult(result);
+  const hasCareer = !!career;
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
@@ -141,6 +163,7 @@ export default function GraduationPage() {
           </div>
         </div>
       </div>
+
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {/* 학과 선택 */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
@@ -180,7 +203,7 @@ export default function GraduationPage() {
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>남은 학기 수</div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {['1', '2', '3', '4', '5', '6', '7', '8'].map(s => (
+            {['1', '2', '3', '4', '5', '6', '7', '8', '없음'].map(s => (
               <button
                 key={s}
                 onClick={() => setRemainingSemesters(s)}
@@ -191,7 +214,7 @@ export default function GraduationPage() {
                   color: remainingSemesters === s ? '#1E40AF' : '#64748B',
                   cursor: 'pointer',
                 }}
-              >{s}학기</button>
+              >{s === '없음' ? '없음' : `${s}학기`}</button>
             ))}
           </div>
           <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '8px' }}>
@@ -199,10 +222,10 @@ export default function GraduationPage() {
           </div>
         </div>
 
-        {/* 희망 진로 입력 (피드백 반영: 수강 설계 근거) */}
+        {/* 희망 진로 */}
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginBottom: '10px' }}>희망 직무 / 진로</div>
-          <input 
+          <input
             type="text"
             value={careerGoal}
             onChange={e => setCareerGoal(e.target.value)}
@@ -212,10 +235,11 @@ export default function GraduationPage() {
               border: `1px solid ${careerGoal ? '#1E40AF' : '#E2E8F0'}`,
               background: 'white', fontSize: '13px',
               color: '#0F172A', outline: 'none',
+              boxSizing: 'border-box',
             }}
           />
           <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '8px' }}>
-            진로에 맞춘 최적의 전공 선택 과목을 추천해 드립니다 (피드백 반영)
+            진로에 맞춘 전공 추천 + 이수 과목 역량 아카이빙을 제공합니다
           </div>
         </div>
 
@@ -225,6 +249,7 @@ export default function GraduationPage() {
           onSuccess={handleSuccess}
           onBase64={(b64, name) => { setCachedBase64(b64); setCachedFileName(name); }}
         />
+
         {analysisError && (
           <div style={{ padding: '12px 14px', background: '#FFF1F2', borderRadius: '10px', border: '1px solid #FECACA', fontSize: '13px', color: '#E11D48' }}>
             {analysisError}
@@ -250,19 +275,56 @@ export default function GraduationPage() {
           </button>
         )}
 
-        <div style={{ position: 'relative' }}>
-          <ResultBox text={result} />
-          {result && (
+        {/* 결과 탭 */}
+        {result && (
+          <div style={{ marginTop: '4px' }}>
+            {/* 탭 헤더 */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '0', background: 'white', borderRadius: '12px 12px 0 0', border: '1px solid #E2E8F0', borderBottom: 'none', padding: '12px 16px 0' }}>
+              {(['학업', '취업'] as Tab[]).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: '8px 18px', borderRadius: '8px 8px 0 0', fontSize: '13px',
+                    fontWeight: activeTab === tab ? 600 : 400,
+                    border: 'none',
+                    borderBottom: activeTab === tab ? '2px solid #1E40AF' : '2px solid transparent',
+                    background: 'transparent',
+                    color: activeTab === tab ? '#1E40AF' : '#94A3B8',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {tab === '학업' ? '📖 학업 분석' : '🎯 취업 아카이빙'}
+                  {tab === '취업' && !hasCareer && (
+                    <span style={{ fontSize: '10px', marginLeft: '4px', color: '#CBD5E1' }}>(진로 입력 시 활성화)</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* 탭 내용 */}
+            <div style={{ background: 'white', borderRadius: '0 0 12px 12px', border: '1px solid #E2E8F0', padding: '16px' }}>
+              {activeTab === '학업' && <ResultBox text={academic} />}
+              {activeTab === '취업' && (
+                hasCareer
+                  ? <ResultBox text={career} />
+                  : (
+                    <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                      희망 직무/진로를 입력하고 분석하면<br />이수 과목 역량 아카이빙이 여기에 표시됩니다
+                    </div>
+                  )
+              )}
+            </div>
+
             <div style={{ marginTop: '12px', padding: '12px', background: '#FFF1F2', borderRadius: '10px', border: '1px solid #FECACA' }}>
-              <div style={{ fontSize: '11px', color: '#E11D48', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                ⚠️ 확인 바랍니다
-              </div>
+              <div style={{ fontSize: '11px', color: '#E11D48', fontWeight: 600 }}>⚠️ 확인 바랍니다</div>
               <div style={{ fontSize: '11px', color: '#F43F5E', marginTop: '4px', lineHeight: 1.5 }}>
-                본 분석 결과는 Upstage AI가 작성한 참고용 자료입니다. 학과별 세부 규정(교직, 트랙 등)에 따라 실제와 다를 수 있으니 반드시 학사 시스템에서 최종 확인해 주세요. (피드백 반영)
+                본 분석 결과는 Upstage AI가 작성한 참고용 자료입니다. 학과별 세부 규정에 따라 실제와 다를 수 있으니 반드시 학사 시스템에서 최종 확인해 주세요.
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>
