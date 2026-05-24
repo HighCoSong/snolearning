@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowLeft,
   Bell,
@@ -177,7 +179,9 @@ function resolveUrl(url: string, source?: string): string {
 }
 
 function getSourceGroup(source: string): string {
-  if ((source || "").includes("비교과")) return "비교과";
+  const s = source || "";
+  if (s.includes("비교과")) return "비교과";
+  if (s === "학교공지") return "학사";
   return "학과공지";
 }
 
@@ -185,6 +189,8 @@ interface NoticeItem {
   title: string;
   date?: string;
   endDate?: string;
+  startDate?: string;
+  dateRange?: string;
   url?: string;
   source?: string;
 }
@@ -348,6 +354,7 @@ function NoticeCard({
   const [added, setAdded] = useState(false);
   const [adding, setAdding] = useState(false);
   const hasDate = !!item.date && item.date !== "날짜미상";
+  const hasRange = !!item.dateRange;
   const cat = categorize(item);
 
   async function handleAdd() {
@@ -397,11 +404,26 @@ function NoticeCard({
           >
             {item.title}
           </div>
-          {hasDate && (
+          {hasRange ? (
+            <div style={{ marginTop: "4px" }}>
+              <span style={{
+                display: "inline-block",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "#0369A1",
+                background: "#E0F2FE",
+                border: "1px solid #BAE6FD",
+                borderRadius: "4px",
+                padding: "2px 7px",
+              }}>
+                📅 {item.dateRange}
+              </span>
+            </div>
+          ) : hasDate && (
             <div
               style={{ fontSize: "11px", color: "#94A3B8", marginTop: "3px" }}
             >
-              {formatKoreanDate(item.date!)}
+              게시일: {formatKoreanDate(item.date!)}
             </div>
           )}
           <div
@@ -433,7 +455,7 @@ function NoticeCard({
                 <ExternalLink size={11} /> 공지 보기
               </a>
             )}
-            {hasDate &&
+            {(hasRange || hasDate) &&
               token &&
               (added ? (
                 <span
@@ -486,10 +508,11 @@ function NoticeCard({
   );
 }
 
-const SOURCE_TABS = ["학과공지", "비교과"];
+const SOURCE_TABS = ["학과공지", "비교과", "학사"];
 const SOURCE_TAB_LABEL: Record<string, string> = {
   학과공지: "학과",
   비교과: "비교과",
+  학사: "학사",
 };
 
 function ResultView({
@@ -626,21 +649,38 @@ export default function NoticePage() {
   const [cats, setCats] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<NoticeItem[]>([]);
+  const [analysis, setAnalysis] = useState("");
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
   const [scriptReady, setScriptReady] = useState(false);
   const [cachedAt, setCachedAt] = useState<Date | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(true);
+  const [savedMajor, setSavedMajor] = useState("");
+  const [savedCareer, setSavedCareer] = useState("");
+  const [savedSemesters, setSavedSemesters] = useState("");
   const didFetch = useRef(false);
 
-  // 저장된 토큰 복원
+  // 저장된 토큰 + 프로필 복원
   useEffect(() => {
     const saved = loadToken();
     if (saved) {
       setToken(saved.token);
       setEmail(saved.email);
     }
+    try {
+      const raw = localStorage.getItem("sno_user_profile");
+      if (raw) {
+        const profile = JSON.parse(raw);
+        if (profile.department) {
+          setSavedMajor(profile.department);
+          setDepts([profile.department]);
+        }
+        if (profile.career_goal) setSavedCareer(profile.career_goal);
+        if (profile.remaining_semesters) setSavedSemesters(profile.remaining_semesters);
+      }
+    } catch { /* ignore */ }
   }, []);
 
   const CACHE_KEY = "notice_cache";
@@ -650,9 +690,10 @@ export default function NoticePage() {
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (!raw) return false;
-      const { items: i, ts } = JSON.parse(raw);
+      const { items: i, analysis: a, ts } = JSON.parse(raw);
       if (Date.now() - ts > CACHE_TTL) return false;
       setItems(i);
+      if (a) setAnalysis(a);
       setCachedAt(new Date(ts));
       return true;
     } catch {
@@ -660,11 +701,11 @@ export default function NoticePage() {
     }
   }
 
-  function saveCache(i: NoticeItem[]) {
+  function saveCache(i: NoticeItem[], a?: string) {
     try {
       localStorage.setItem(
         CACHE_KEY,
-        JSON.stringify({ items: i, ts: Date.now() }),
+        JSON.stringify({ items: i, analysis: a || "", ts: Date.now() }),
       );
     } catch {
       /* ignore */
@@ -717,12 +758,16 @@ export default function NoticePage() {
   }
 
   async function addToCalendar(item: NoticeItem) {
-    if (!token || !item.date) return;
-    const start = new Date(item.date);
+    if (!token) return;
+    const calStart = item.startDate || item.date;
+    if (!calStart) return;
+    const start = new Date(calStart);
     const end = item.endDate
       ? new Date(item.endDate)
+      : item.startDate
+      ? new Date(item.startDate)
       : new Date(start.getTime() + 60 * 60 * 1000);
-    const hasTime = item.date.includes("T");
+    const hasTime = calStart.includes("T");
     await fetch(
       "https://www.googleapis.com/calendar/v3/calendars/primary/events",
       {
@@ -788,8 +833,10 @@ export default function NoticePage() {
       try {
         const json = JSON.parse(text);
         const newItems = json.items || [];
+        const newAnalysis = json.analysis || "";
         setItems(newItems);
-        saveCache(newItems);
+        setAnalysis(newAnalysis);
+        saveCache(newItems, newAnalysis);
         setCachedAt(new Date());
       } catch {
         setItems([]);
@@ -801,10 +848,18 @@ export default function NoticePage() {
     }
   }
 
+  // 프로필 depts 세팅 후 자동 조회
   useEffect(() => {
     if (!didFetch.current) {
       didFetch.current = true;
-      fetchNotices([], [], true);
+      try {
+        const raw = localStorage.getItem("sno_user_profile");
+        const profile = raw ? JSON.parse(raw) : null;
+        const initialDepts = profile?.department ? [profile.department] : [];
+        fetchNotices(initialDepts, [], true);
+      } catch {
+        fetchNotices([], [], true);
+      }
     }
   }, []);
 
@@ -1290,6 +1345,42 @@ export default function NoticePage() {
           </div>
         )}
 
+        {/* AI 맞춤 분석 */}
+        {analysis && !loading && (
+          <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #FDE68A', overflow: 'hidden' }}>
+            <button
+              onClick={() => setAnalysisOpen(o => !o)}
+              style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#B45309' }}>✨ AI 맞춤 분석</span>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {savedMajor && <span style={{ fontSize: '11px', color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '4px', padding: '1px 6px' }}>{savedMajor}</span>}
+                  {savedCareer && <span style={{ fontSize: '11px', color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '4px', padding: '1px 6px' }}>{savedCareer}</span>}
+                  {savedSemesters && savedSemesters !== '없음' && <span style={{ fontSize: '11px', color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '4px', padding: '1px 6px' }}>{savedSemesters}학기 남음</span>}
+                </div>
+              </div>
+              {analysisOpen ? <ChevronUp size={16} color="#D97706" /> : <ChevronDown size={16} color="#D97706" />}
+            </button>
+            {analysisOpen && (
+              <div style={{ padding: '0 16px 16px', borderTop: '1px solid #FEF3C7' }}>
+                <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.7, wordBreak: 'break-word' }} className="md-content">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ href, children }) => (
+                        <a href={href} target="_blank" rel="noreferrer" style={{ color: '#1E40AF', fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                          {children}
+                        </a>
+                      ),
+                    }}
+                  >{analysis}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {items.length > 0 && !loading && (
           <ResultView
             items={
@@ -1308,6 +1399,13 @@ export default function NoticePage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .tab-bar { scrollbar-width: none; -ms-overflow-style: none; }
         .tab-bar::-webkit-scrollbar { display: none; }
+        .md-content p { margin: 0 0 6px; }
+        .md-content ul { margin: 4px 0 6px; padding-left: 16px; }
+        .md-content ol { margin: 4px 0 6px; padding-left: 16px; }
+        .md-content li { margin-bottom: 2px; }
+        .md-content strong { font-weight: 600; color: #1E293B; }
+        .md-content h3 { font-size: 13px; font-weight: 700; color: #B45309; margin: 10px 0 4px; }
+        .md-content h4 { font-size: 12px; font-weight: 600; color: #1E293B; margin: 8px 0 3px; }
       `}</style>
     </div>
   );
