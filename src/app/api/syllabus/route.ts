@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const payload = JSON.stringify(body);
-  const headers = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' };
+  const headers = { 'Content-Type': 'application/json' };
 
   for (const url of [
-    'https://trouble-smudge-stank.ngrok-free.dev/webhook/syllabus',
-    'https://trouble-smudge-stank.ngrok-free.dev/webhook-test/syllabus',
+    'http://localhost:5678/webhook/syllabus',
+    'http://localhost:5678/webhook-test/syllabus',
   ]) {
     try {
       const res = await fetch(url, { method: 'POST', headers, body: payload });

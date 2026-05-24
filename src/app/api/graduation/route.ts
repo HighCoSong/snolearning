@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const payload = JSON.stringify(body);
-  const headers = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' };
+  const headers = { 'Content-Type': 'application/json' };
 
   // Try production webhook first, fall back to test webhook
   for (const url of [
-    'https://trouble-smudge-stank.ngrok-free.dev/webhook/graduation',
-    'https://trouble-smudge-stank.ngrok-free.dev/webhook-test/graduation',
+    'http://localhost:5678/webhook/graduation',
+    'http://localhost:5678/webhook-test/graduation',
   ]) {
     try {
       const res = await fetch(url, { method: 'POST', headers, body: payload });
