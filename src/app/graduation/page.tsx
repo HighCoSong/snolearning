@@ -10,19 +10,44 @@ import {
 } from "lucide-react";
 import PdfUploader from "@/components/PdfUploader";
 import ResultBox from "@/components/ResultBox";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+} from "recharts";
 
 const GRAD_CACHE_KEY = "sno_grad_cache";
+
+interface CreditItem {
+  earned: number;
+  required: number;
+}
+interface GradesData {
+  credits: Record<string, CreditItem>;
+  gpa_by_semester: { semester: string; gpa: number }[];
+  grade_distribution: Record<string, number>;
+  total_earned: number;
+  total_required: number;
+}
 
 function saveGradCache(
   result: string,
   dept: string,
   remainingSemesters: string,
   careerGoal: string,
+  grades: GradesData | null,
 ) {
   try {
     localStorage.setItem(
       GRAD_CACHE_KEY,
-      JSON.stringify({ result, dept, remainingSemesters, careerGoal }),
+      JSON.stringify({ result, dept, remainingSemesters, careerGoal, grades }),
     );
   } catch {
     /* ignore */
@@ -34,6 +59,7 @@ function loadGradCache(): {
   dept: string;
   remainingSemesters: string;
   careerGoal?: string;
+  grades?: GradesData | null;
 } | null {
   try {
     const raw = localStorage.getItem(GRAD_CACHE_KEY);
@@ -43,7 +69,6 @@ function loadGradCache(): {
   }
 }
 
-/** result 텍스트를 학업/취업 두 파트로 분리 */
 function splitResult(text: string): { academic: string; career: string } {
   const marker = "## 🎯 취준 역량 분석";
   const idx = text.indexOf(marker);
@@ -114,10 +139,256 @@ function saveUserProfile(
   }
 }
 
+// 졸업요건 달성도 프로그레스 바
+function CreditsProgress({ credits }: { credits: Record<string, CreditItem> }) {
+  const COLORS: Record<string, string> = {
+    전공필수: "#1E40AF",
+    전공선택: "#3B82F6",
+    교양필수: "#7C3AED",
+    교양선택: "#A78BFA",
+    자유선택: "#64748B",
+  };
+  const ORDER = ["전공필수", "전공선택", "교양필수", "교양선택", "자유선택"];
+  const items = ORDER.filter((k) => credits[k] && credits[k].required > 0);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        background: "white",
+        borderRadius: "12px",
+        border: "1px solid #E2E8F0",
+        padding: "16px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          color: "#0F172A",
+          marginBottom: "14px",
+        }}
+      >
+        졸업요건 달성도
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {items.map((key) => {
+          const { earned, required } = credits[key];
+          const pct = Math.min(100, Math.round((earned / required) * 100));
+          const done = earned >= required;
+          return (
+            <div key={key}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "5px",
+                }}
+              >
+                <span style={{ fontSize: "12px", color: "#334155", fontWeight: 500 }}>
+                  {key}
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: done ? "#16A34A" : COLORS[key] || "#1E40AF",
+                  }}
+                >
+                  {done ? "✓ " : ""}{earned} / {required}학점
+                </span>
+              </div>
+              <div
+                style={{
+                  height: "8px",
+                  background: "#F1F5F9",
+                  borderRadius: "999px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${pct}%`,
+                    background: done ? "#16A34A" : COLORS[key] || "#1E40AF",
+                    borderRadius: "999px",
+                    transition: "width 0.6s ease",
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* 전체 요약 */}
+      {credits["전공필수"] && (
+        <div
+          style={{
+            marginTop: "14px",
+            paddingTop: "12px",
+            borderTop: "1px solid #F1F5F9",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: "11px", color: "#64748B" }}>전체 이수학점</span>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
+            {Object.values(credits)
+              .filter((c) => c.earned >= 0)
+              .reduce((a, c) => a + c.earned, 0)}{" "}
+            /{" "}
+            {Object.values(credits)
+              .filter((c) => c.required >= 0)
+              .reduce((a, c) => a + c.required, 0)}
+            학점
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 학기별 GPA 라인 차트
+function GpaChart({ data }: { data: { semester: string; gpa: number }[] }) {
+  const valid = data.filter((d) => d.gpa > 0);
+  if (valid.length < 2) return null;
+
+  return (
+    <div
+      style={{
+        background: "white",
+        borderRadius: "12px",
+        border: "1px solid #E2E8F0",
+        padding: "16px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          color: "#0F172A",
+          marginBottom: "14px",
+        }}
+      >
+        학기별 GPA 추이
+      </div>
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={valid} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+          <XAxis
+            dataKey="semester"
+            tick={{ fontSize: 10, fill: "#94A3B8" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            domain={[2.0, 4.5]}
+            tick={{ fontSize: 10, fill: "#94A3B8" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              borderRadius: "8px",
+              border: "1px solid #E2E8F0",
+              fontSize: "12px",
+            }}
+            formatter={(v) => [typeof v === "number" ? v.toFixed(2) : v, "GPA"]}
+          />
+          <Line
+            type="monotone"
+            dataKey="gpa"
+            stroke="#1E40AF"
+            strokeWidth={2}
+            dot={{ fill: "#1E40AF", r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// 성적 분포 바 차트
+function GradeChart({ dist }: { dist: Record<string, number> }) {
+  const ORDER = ["A+", "A0", "B+", "B0", "C+", "C0", "D+", "D0", "F"];
+  const data = ORDER.map((g) => ({ grade: g, count: dist[g] ?? 0 })).filter(
+    (d) => d.count > 0,
+  );
+  if (data.length === 0) return null;
+
+  const GRADE_COLOR: Record<string, string> = {
+    "A+": "#1E40AF",
+    "A0": "#3B82F6",
+    "B+": "#7C3AED",
+    "B0": "#A78BFA",
+    "C+": "#F59E0B",
+    "C0": "#FCD34D",
+    "D+": "#EF4444",
+    "D0": "#FCA5A5",
+    F: "#94A3B8",
+  };
+
+  return (
+    <div
+      style={{
+        background: "white",
+        borderRadius: "12px",
+        border: "1px solid #E2E8F0",
+        padding: "16px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          color: "#0F172A",
+          marginBottom: "14px",
+        }}
+      >
+        성적 분포
+      </div>
+      <ResponsiveContainer width="100%" height={130}>
+        <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+          <XAxis
+            dataKey="grade"
+            tick={{ fontSize: 11, fill: "#64748B" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={{ fontSize: 10, fill: "#94A3B8" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              borderRadius: "8px",
+              border: "1px solid #E2E8F0",
+              fontSize: "12px",
+            }}
+            formatter={(v) => [v + "과목", "수강"]}
+          />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            {data.map((entry) => (
+              <Cell key={entry.grade} fill={GRADE_COLOR[entry.grade] ?? "#94A3B8"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 type Tab = "학업" | "취업";
 
 export default function GraduationPage() {
   const [result, setResult] = useState("");
+  const [grades, setGrades] = useState<GradesData | null>(null);
   const [dept, setDept] = useState("");
   const [remainingSemesters, setRemainingSemesters] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -145,22 +416,26 @@ export default function GraduationPage() {
       );
       return;
     }
-    // JSON 응답 파싱
     let text = raw;
+    let parsedGrades: GradesData | null = null;
     try {
       const parsed = JSON.parse(raw);
-      if (parsed.result) text = parsed.result;
+      if (parsed.result) {
+        text = parsed.result;
+        if (parsed.grades) parsedGrades = parsed.grades;
+      }
     } catch {
       /* 텍스트 그대로 사용 */
     }
 
     setAnalysisError("");
     setResult(text);
+    setGrades(parsedGrades);
     setLastAnalyzedDept(dept);
     setLastAnalyzedSem(remainingSemesters);
     setLastAnalyzedGoal(careerGoal);
     if (dept) saveUserProfile(dept, remainingSemesters, careerGoal);
-    saveGradCache(text, dept, remainingSemesters, careerGoal);
+    saveGradCache(text, dept, remainingSemesters, careerGoal, parsedGrades);
   }
 
   const canReanalyze =
@@ -197,6 +472,11 @@ export default function GraduationPage() {
 
   const { academic, career } = splitResult(result);
   const hasCareer = !!career;
+  const hasCharts =
+    grades &&
+    (Object.keys(grades.credits ?? {}).length > 0 ||
+      (grades.gpa_by_semester ?? []).length >= 2 ||
+      Object.keys(grades.grade_distribution ?? {}).length > 0);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC" }}>
@@ -285,6 +565,7 @@ export default function GraduationPage() {
             onChange={(e) => {
               setDept(e.target.value);
               setResult("");
+              setGrades(null);
             }}
             style={{
               width: "100%",
@@ -492,10 +773,28 @@ export default function GraduationPage() {
           </button>
         )}
 
+        {/* 시각화 차트 */}
+        {hasCharts && grades && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", paddingLeft: "2px" }}>
+              이수 현황
+            </div>
+            {grades.credits && Object.keys(grades.credits).length > 0 && (
+              <CreditsProgress credits={grades.credits} />
+            )}
+            {grades.gpa_by_semester && grades.gpa_by_semester.length >= 2 && (
+              <GpaChart data={grades.gpa_by_semester} />
+            )}
+            {grades.grade_distribution &&
+              Object.values(grades.grade_distribution).some((v) => v > 0) && (
+                <GradeChart dist={grades.grade_distribution} />
+              )}
+          </div>
+        )}
+
         {/* 결과 탭 */}
         {result && (
           <div style={{ marginTop: "4px" }}>
-            {/* 탭 헤더 */}
             <div
               style={{
                 display: "flex",
@@ -543,7 +842,6 @@ export default function GraduationPage() {
               ))}
             </div>
 
-            {/* 탭 내용 */}
             <div
               style={{
                 background: "white",

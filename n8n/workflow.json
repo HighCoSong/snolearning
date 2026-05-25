@@ -1,0 +1,740 @@
+{
+  "name": "스노러닝 - 전체 워크플로우",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "graduation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        100,
+        300
+      ],
+      "id": "g0",
+      "name": "Webhook [졸업요건]",
+      "webhookId": "1483fbb4-ae28-46ce-becb-89c9a5ae8219"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upstage.ai/v1/document-ai/document-parse",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.UPSTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "document",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "ocr",
+              "value": "true"
+            },
+            {
+              "name": "output_formats",
+              "value": "[\"text\", \"html\"]"
+            },
+            {
+              "name": "model",
+              "value": "document-parse"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        540,
+        300
+      ],
+      "id": "g1",
+      "name": "이수표 OCR 파싱 [졸업요건]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ result: $json.result, visualization: $json.visualization, analyzed_at: $json.analyzed_at }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1420,
+        300
+      ],
+      "id": "g2",
+      "name": "Respond to Webhook [졸업요건]"
+    },
+    {
+      "parameters": {
+        "jsCode": "  const base64 = $input.first().json.body.file_base64;                          \n  const fileName = $input.first().json.body.file_name || 'document.pdf';\n  const binaryData = await this.helpers.prepareBinaryData(                      \n    Buffer.from(base64, 'base64'),                                              \n    fileName,                                                                  \n    'application/pdf'                                                           \n  );              \n  return [{ json: {}, binary: { data: binaryData } }];  "
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        300
+      ],
+      "id": "g3",
+      "name": "PDF 바이너리 변환 [졸업요건]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upstage.ai/v1/solar/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.UPSTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "options": {},
+        "jsonBody": "={\n  \"model\": \"solar-pro\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"너는 대학 학사 어드바이저야. 업로드된 이수표(성적표)를 분석해서 아래 순서대로 정확히 출력해줘.\\n\\n[1단계 마크다운 분석]\\n이수 구분별 현황, 미이수 필수과목, 수강 추천을 한국어로 작성해. department(학과), remaining_semesters(남은 학기), career_goal(희망 직무)가 주어지면 그에 맞게 분석해. 분석 끝에 반드시 다음 문장 추가: '이 결과는 참고용이며, 최종 확인은 학사 시스템과 학과 사무실에서 해주세요.'\\n\\n[2단계 구조화 데이터]\\n마크다운 분석 바로 다음 줄에 반드시 아래 형식 그대로 한 줄로 출력해. 이수표에서 읽은 실제 수치를 넣어줘. required는 졸업요건 기준 학점, earned는 실제 이수 학점. 알 수 없으면 -1.\\n\\n---JSON---\\n{\\\"credits\\\":{\\\"전공필수\\\":{\\\"earned\\\":0,\\\"required\\\":0},\\\"전공선택\\\":{\\\"earned\\\":0,\\\"required\\\":0},\\\"교양필수\\\":{\\\"earned\\\":0,\\\"required\\\":0},\\\"교양선택\\\":{\\\"earned\\\":0,\\\"required\\\":0},\\\"자유선택\\\":{\\\"earned\\\":0,\\\"required\\\":0}},\\\"gpa_by_semester\\\":[{\\\"semester\\\":\\\"20XX-1\\\",\\\"gpa\\\":0.0}],\\\"grade_distribution\\\":{\\\"A+\\\":0,\\\"A0\\\":0,\\\"B+\\\":0,\\\"B0\\\":0,\\\"C+\\\":0,\\\"C0\\\":0,\\\"D+\\\":0,\\\"D0\\\":0,\\\"F\\\":0},\\\"total_earned\\\":0,\\\"total_required\\\":0}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify(\"학과: \" + ($('Webhook [졸업요건]').first().json.department || \"미입력\") + \"\\n남은 학기: \" + ($('Webhook [졸업요건]').first().json.remaining_semesters || \"미입력\") + \"\\n희망 직무: \" + ($('Webhook [졸업요건]').first().json.career_goal || \"미입력\") + \"\\n\\n이수표 내용:\\n\" + $json.extracted_text) }}\n    }\n  ],\n  \"max_tokens\": 2500\n}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        980,
+        300
+      ],
+      "id": "g4",
+      "name": "졸업요건 AI 분석 [졸업요건]"
+    },
+    {
+      "id": "g5",
+      "name": "텍스트 추출 [졸업요건]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst sanitize = s => (s || '').replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, '');\nconst raw_text = response.content?.text || (response.pages || []).map(p => p.text || '').join('\\n') || '';\nconst raw_html = response.content?.html || (response.pages || []).map(p => p.html || '').join('\\n') || '';\nreturn [{ json: { extracted_text: sanitize(raw_text), extracted_html: sanitize(raw_html) } }];"
+      }
+    },
+    {
+      "id": "g6",
+      "name": "결과 포맷팅 [졸업요건]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.choices[0].message.content;\nconst analyzedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });\n\nconst MARKER = '---JSON---';\nconst markerIdx = raw.indexOf(MARKER);\n\nlet result = raw;\nlet grades = null;\n\nif (markerIdx !== -1) {\n  result = raw.slice(0, markerIdx).trimEnd();\n  try {\n    const jsonStr = raw.slice(markerIdx + MARKER.length).trim();\n    grades = JSON.parse(jsonStr);\n  } catch(e) {\n    // JSON 파싱 실패 시 grades는 null 유지\n  }\n}\n\nreturn [{ json: { result, grades, analyzed_at: analyzedAt } }];"
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notice",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        100,
+        740
+      ],
+      "id": "n0",
+      "name": "Webhook [공지]",
+      "webhookId": "notice-webhook-001"
+    },
+    {
+      "id": "n1",
+      "name": "학교 비교과 수집 [공지]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        600
+      ],
+      "parameters": {
+        "jsCode": "const httpRequest = this.helpers.httpRequest.bind(this.helpers);\nlet items = [];\n\n// [1] WISE 비교과 수집\ntry {\n  const html = String(await httpRequest({ method: 'GET', url: 'https://wise.sookmyung.ac.kr/ko/program/all/list/all/1', headers: { 'User-Agent': 'Mozilla/5.0' } }));\n  const blocks = html.split('href=\"/ko/program/all/view/');\n  for (let i = 1; i < blocks.length; i++) {\n    const b = blocks[i];\n    const id = b.split('\"')[0];\n    const title = b.split('<b class=\"title\">')[1]?.split('</b>')[0]?.trim();\n    if (title && id.match(/^\\d+$/)) {\n      items.push({ title, url: 'https://wise.sookmyung.ac.kr/ko/program/all/view/' + id, source: '비교과', date: new Date().toISOString() });\n    }\n  }\n} catch(e) {}\n\n// [2] 학교 중요공지 (www.sookmyung.ac.kr)\ntry {\n  const html = String(await httpRequest({\n    method: 'GET',\n    url: 'https://www.sookmyung.ac.kr/kr/news/important-notice.do?mode=list&article.offset=0&articleLimit=20',\n    headers: { 'User-Agent': 'Mozilla/5.0' }\n  }));\n  const entries = [...html.matchAll(/data-article-no=\"(\\d+)\"[\\s\\S]*?title=\"자세히 보기\">([\\s\\S]*?)<\\/a>/g)];\n  const dates = [...html.matchAll(/class=\"b-date[^\"]*\"[^>]*>([\\s\\S]*?)</g)];\n  entries.forEach((m, i) => {\n    const no = m[1];\n    const title = m[2].replace(/\\s+/g, ' ').trim();\n    const rawDate = dates[i] ? dates[i][1].trim() : '';\n    const date = rawDate ? new Date(rawDate.replace(/\\./g, '-')).toISOString() : new Date().toISOString();\n    if (title) items.push({\n      title,\n      url: 'https://www.sookmyung.ac.kr/kr/news/important-notice.do?mode=view&articleNo=' + no,\n      source: '학교공지',\n      date\n    });\n  });\n} catch(e) {}\n\nreturn [{ json: { items, total: items.length } }];"
+      }
+    },
+    {
+      "id": "n2",
+      "name": "학과 게시판 수집 [공지]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        880
+      ],
+      "parameters": {
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst httpRequest = this.helpers.httpRequest.bind(this.helpers);\nconst deptUrlMap = {\"컴퓨터과학전공\": \"https://csweb.sookmyung.ac.kr/\", \"데이터사이언스전공\": \"https://ds.sookmyung.ac.kr/\", \"인공지능공학부\": \"https://aie.sookmyung.ac.kr/\", \"수학과\": \"http://math.sookmyung.ac.kr/\", \"통계학과\": \"https://stat.sookmyung.ac.kr/\", \"화학과\": \"https://chem.sookmyung.ac.kr/\", \"생명시스템학부\": \"https://bio.sookmyung.ac.kr/\", \"화공생명공학부\": \"https://chembioe.sookmyung.ac.kr/\", \"지능형전자시스템학부\": \"https://electro.sookmyung.ac.kr/\", \"신소재물리학부\": \"https://physics.sookmyung.ac.kr/\", \"기계시스템학부\": \"https://mse.sookmyung.ac.kr/\", \"식품영양학과\": \"http://fn.sookmyung.ac.kr/\", \"의류학과\": \"https://cloth.sookmyung.ac.kr/\", \"아동복지학부\": \"http://childwelfare.sookmyung.ac.kr/\", \"가족자원경영학과\": \"https://family.sookmyung.ac.kr/\", \"영어영문학부\": \"http://english.sookmyung.ac.kr/\", \"한국어문학부\": \"http://korean.sookmyung.ac.kr/\", \"역사문화학과\": \"http://history.sookmyung.ac.kr/\", \"문헌정보학과\": \"https://lis.sookmyung.ac.kr/\", \"프랑스언어·문화학과\": \"http://french.sookmyung.ac.kr/\", \"중어중문학부\": \"http://chinese.sookmyung.ac.kr/\", \"독일언어·문화학과\": \"http://german.sookmyung.ac.kr/\", \"일본학과\": \"http://japan.sookmyung.ac.kr/\", \"경제학부\": \"http://econ.sookmyung.ac.kr/\", \"법학부\": \"http://law.sookmyung.ac.kr/\", \"정치외교학과\": \"http://politics.sookmyung.ac.kr/\", \"행정학과\": \"http://pa.sookmyung.ac.kr/\", \"홍보광고학과\": \"http://prad.sookmyung.ac.kr/\", \"소비자경제학과\": \"http://conecon.sookmyung.ac.kr/\", \"사회심리학과\": \"https://www.socpsy.sookmyung.ac.kr/\", \"교육학부\": \"https://edu.sookmyung.ac.kr/\", \"미디어학부\": \"https://home.sookmyung.ac.kr/media/\", \"영어영문학전공\": \"https://english.sookmyung.ac.kr/\", \"글로벌협력전공\": \"http://global.sookmyung.ac.kr/\", \"앙트러프러너십전공\": \"http://global.sookmyung.ac.kr/\", \"융합국제학부\": \"https://hallyu.sookmyung.ac.kr/\", \"한류국제학부\": \"https://hallyu.sookmyung.ac.kr/\", \"공예과\": \"http://craft.sookmyung.ac.kr/\", \"시각·영상디자인과\": \"https://smvd.sookmyung.ac.kr/\", \"산업디자인과\": \"http://smid.ac.kr/\", \"환경디자인과\": \"http://design.sookmyung.ac.kr/\", \"경영학부\": \"http://biz.sookmyung.ac.kr/\", \"회계학과\": \"http://accounting.sookmyung.ac.kr/\", \"약학부\": \"https://pharmacy.sookmyung.ac.kr/\", \"피아노과\": \"https://piano.sookmyung.ac.kr/\", \"관현악과\": \"https://orchestra.sookmyung.ac.kr/\", \"성악과\": \"https://vocal.sookmyung.ac.kr/\", \"작곡과\": \"https://composition.sookmyung.ac.kr/\", \"회화과\": \"https://painting.sookmyung.ac.kr/\", \"공예학과\": \"https://craft.sookmyung.ac.kr/\", \"시각·영상디자인학과\": \"https://vd.sookmyung.ac.kr/\", \"산업디자인학과\": \"https://id.sookmyung.ac.kr/\", \"환경디자인학과\": \"https://evd.sookmyung.ac.kr/\", \"체육교육과\": \"https://pe.sookmyung.ac.kr/\", \"무용과\": \"https://dance.sookmyung.ac.kr/\", \"르꼬르동블루외식경영전공\": \"https://leb.sookmyung.ac.kr/\"};\n\nfunction isRecent(dateStr) {\n  if (!dateStr) return true;\n  const cleanDate = dateStr.replace(/[\\s\\.\\u00a0]+/g, '-').replace(/-$/, '');\n  const d = new Date(cleanDate);\n  if (isNaN(d.getTime())) return true;\n  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 365);\n  return d >= cutoff;\n}\n\nasync function findDeptRss(dept) {\n  const baseUrl = deptUrlMap[dept]; if (!baseUrl) return null;\n  try {\n    const html = String(await httpRequest({ method:'GET', url: baseUrl, headers:{'User-Agent':'Mozilla/5.0'} }));\n    let m = html.match(/\\/bbs\\/([\\w\\d]+)\\/(\\d+)\\//);\n    if (!m) return null;\n    const rssUrl = baseUrl.replace(/\\/index\\.do$/, '').replace(/\\/$/, '') + '/bbs/' + m[1] + '/' + m[2] + '/rssList.do?row=20';\n    return { url: rssUrl, dept, baseUrl };\n  } catch(e) { return null; }\n}\n\nfunction parseRss(xml, dept, baseUrl) {\n  const items = []; const re = /<item>([\\s\\S]*?)<\\/item>/g; let m;\n  while ((m = re.exec(xml)) !== null) {\n    const b = m[1];\n    const title = (b.match(/<title[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/) || b.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/) || [])[1] || '';\n    const rawLink = (b.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/) || b.match(/<guid[^>]*>([\\s\\S]*?)<\\/guid>/) || [])[1] || '';\n    const pubDate = (b.match(/<pubDate[^>]*>([\\s\\S]*?)<\\/pubDate>/) || [])[1] || '';\n    let link = rawLink.trim();\n    if (link && !link.startsWith('http')) link = baseUrl.replace(/\\/$/, '') + (link.startsWith('/') ? '' : '/') + link;\n    if (title.trim() && isRecent(pubDate)) items.push({ title:title.trim(), date:pubDate, url:link, source:'학과공지(' + dept + ')' });\n  }\n  return items;\n}\n\nconst departments = body.departments || [];\nconst rssInfos = (await Promise.all(departments.map(findDeptRss))).filter(Boolean);\nconst allItems = [];\nfor (const info of rssInfos) {\n  try {\n    const xml = String(await httpRequest({ method:'GET', url:info.url, headers:{'User-Agent':'Mozilla/5.0'} }));\n    allItems.push(...parseRss(xml, info.dept, info.baseUrl));\n  } catch(e) {}\n}\nreturn [{ json: { source: 'dept', items: allItems, departments } }];"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "공지 병합 [공지]",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        560,
+        740
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "공지 통합 파싱 [공지]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        740
+      ],
+      "parameters": {
+        "jsCode": "const httpRequest = this.helpers.httpRequest.bind(this.helpers);\nconst allInputs = $input.all();\nlet allItems = [];\n\nfor (const inp of allInputs) {\n  if (inp.json.items) allItems = allItems.concat(inp.json.items);\n}\n\nconst seen = new Set();\nconst items = allItems.filter(i => {\n  const key = (i.url || i.title).toLowerCase();\n  if (seen.has(key)) return false;\n  seen.add(key); return true;\n}).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());\n\n// ── 날짜 추출 ───────────────────────────────────────────────\nconst Y = new Date().getFullYear();\n\nfunction pad(n) { return String(n).padStart(2, '0'); }\n\nfunction parseDateParts(str) {\n  // \"M. D\" or \"M.D\" or \"M/D\"\n  const m = str.match(/(\\d{1,2})[./\\s]+(\\d{1,2})/);\n  if (m) return { mo: pad(m[1]), d: pad(m[2]) };\n  return null;\n}\n\nfunction extractFromTitle(title) {\n  // Range: (M. D ~ M. D) or M.D~M.D with optional year/요일\n  const rng = title.match(/(\\d{1,2})[.\\s]+(\\d{1,2})[^~\\d]*~[^~\\d]*(\\d{1,2})[.\\s]+(\\d{1,2})/);\n  if (rng) {\n    const s = `${pad(rng[1])}/${pad(rng[2])}`;\n    const e = `${pad(rng[3])}/${pad(rng[4])}`;\n    return { label: `${s} ~ ${e}`, startDate: `${Y}-${pad(rng[1])}-${pad(rng[2])}`, endDate: `${Y}-${pad(rng[3])}-${pad(rng[4])}` };\n  }\n  // Deadline: ~M/D or ~M.D\n  const dl = title.match(/~\\s*(\\d{1,2})[./](\\d{1,2})/);\n  if (dl) {\n    return { label: `~ ${pad(dl[1])}/${pad(dl[2])}`, endDate: `${Y}-${pad(dl[1])}-${pad(dl[2])}` };\n  }\n  // Single full date: 2026. M. D\n  const full = title.match(/20\\d{2}[.\\s]+(\\d{1,2})[.\\s]+(\\d{1,2})/);\n  if (full) {\n    return { label: `${full[1]}/${full[2]}`, endDate: `${Y}-${pad(full[1])}-${pad(full[2])}` };\n  }\n  // M월 D일\n  const kor = title.match(/(\\d{1,2})월\\s*(\\d{1,2})일/);\n  if (kor) {\n    return { label: `${kor[1]}/${kor[2]}`, endDate: `${Y}-${pad(kor[1])}-${pad(kor[2])}` };\n  }\n  return null;\n}\n\nfunction extractFromContent(html) {\n  // Remove tags\n  const text = html.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ');\n  // Find best date range: look for range patterns with context keywords\n  const patterns = [\n    /(?:신청|접수|제출|마감|기간)[^0-9]{0,20}(\\d{1,2})[.\\s]+(\\d{1,2})[^~\\d]{0,15}~[^~\\d]{0,10}(\\d{1,2})[.\\s]+(\\d{1,2})/,\n    /(\\d{1,2})[.\\s]+(\\d{1,2})[^~\\d]{0,5}~[^~\\d]{0,5}(\\d{1,2})[.\\s]+(\\d{1,2})/,\n  ];\n  for (const pat of patterns) {\n    const m = text.match(pat);\n    if (m) {\n      const si = pat.source.startsWith('(?:') ? 1 : 0;\n      const [, a, b, c, d] = m.slice(si > 0 ? 0 : 0);\n      // extract last 4 capture groups\n      const caps = m.slice(m.length - 4);\n      if (caps[0] && caps[1] && caps[2] && caps[3]) {\n        const s = `${pad(caps[0])}/${pad(caps[1])}`;\n        const e = `${pad(caps[2])}/${pad(caps[3])}`;\n        return { label: `${s} ~ ${e}`, startDate: `${Y}-${pad(caps[0])}-${pad(caps[1])}`, endDate: `${Y}-${pad(caps[2])}-${pad(caps[3])}` };\n      }\n    }\n  }\n  // Deadline only\n  const dl = text.match(/(?:마감|까지)[^0-9]{0,10}(\\d{1,2})[./](\\d{1,2})/);\n  if (dl) return { label: `~ ${pad(dl[1])}/${pad(dl[2])}`, endDate: `${Y}-${pad(dl[1])}-${pad(dl[2])}` };\n  return null;\n}\n\n// 1단계: 제목에서 추출\nfor (const item of items) {\n  const extracted = extractFromTitle(item.title || '');\n  if (extracted) {\n    item.dateRange = extracted.label;\n    if (extracted.startDate) item.startDate = extracted.startDate;\n    if (extracted.endDate) item.endDate = extracted.endDate;\n  }\n}\n\n// 2단계: 학교공지 중 미추출 항목 본문 fetch (최대 8개 병렬)\nconst toFetch = items.filter(i => i.source === '학교공지' && !i.dateRange && i.url).slice(0, 8);\nif (toFetch.length > 0) {\n  const results = await Promise.all(toFetch.map(async item => {\n    try {\n      const html = String(await httpRequest({ method: 'GET', url: item.url, headers: { 'User-Agent': 'Mozilla/5.0' } }));\n      return { item, result: extractFromContent(html) };\n    } catch(e) { return { item, result: null }; }\n  }));\n  for (const { item, result } of results) {\n    if (result) {\n      item.dateRange = result.label;\n      if (result.startDate) item.startDate = result.startDate;\n      if (result.endDate) item.endDate = result.endDate;\n    }\n  }\n}\n\n// ── AI 텍스트 구성 ──────────────────────────────────────────\nconst webhookBody = $('Webhook [공지]').first().json.body || $('Webhook [공지]').first().json;\nconst major = webhookBody.major || '';\nconst careerGoal = webhookBody.career_goal || '';\nconst remainingSemesters = webhookBody.remaining_semesters || '';\n\nlet profileSection = '';\nif (major || careerGoal) {\n  profileSection = `[사용자 프로필]\\n전공: ${major}\\n희망진로: ${careerGoal || '미입력'}\\n남은학기: ${remainingSemesters || '미입력'}\\n\\n`;\n}\n\nconst deptItems = items.filter(i => i.source && i.source.startsWith('학과공지') && i.date);\nconst schoolItems = items.filter(i => i.source && i.source === '학교공지' && i.date);\nconst otherItems = items.filter(i => i.source && !i.source.startsWith('학과공지') && i.source !== '학교공지' && i.date);\n\nconst noticeList = [\n  ...deptItems.slice(0, 12),\n  ...otherItems.slice(0, 8),\n  ...schoolItems.slice(0, 10)\n].map(i => {\n  const range = i.dateRange ? i.dateRange : (() => {\n    if (!i.date) return '';\n    const d = new Date(i.date);\n    return `${d.getMonth()+1}/${d.getDate()}`;\n  })();\n  return `[${i.source}] ${i.title} | ${range} | ${i.url || ''}`;\n}).join('\\n');\n\nconst noticeText = profileSection + noticeList;\n\nreturn [{ json: { items, total: items.length, noticeText } }];"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upstage.ai/v1/solar/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.UPSTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"solar-pro\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"너는 숙명여자대학교 학생을 위한 공지 큐레이터야.\\n\\n주어진 공지 목록에서 학생 프로필 기반으로 가장 관련성 높은 것만 엄선해서 아래 형식으로 출력해.\\n\\n[선별 규칙]\\n- 학과 공지: 최대 3개만\\n- 학교 공지: 최대 3개만\\n- 졸업 관련 공지(졸업신청, 졸업논문, 졸업인증, 졸업작품 등)는 남은학기가 2 이하일 때만 포함. 그 외에는 제외\\n- 관련성 없으면 과감하게 제외. 적게 보여주는 게 낫다\\n- 날짜 없는 항목 제외\\n\\n[출력 형식 - 반드시 이 형식만 사용]\\n\\n## 학과 공지\\n\\n- **[제목](링크URL)** (날짜)\\n  요약 한 줄\\n\\n## 학교 공지\\n\\n- **[제목](링크URL)** (날짜)\\n  요약 한 줄\\n\\n[출력 예시]\\n\\n## 학과 공지\\n\\n- **[졸업작품 제안서 제출 안내](https://csweb.sookmyung.ac.kr/...)** (6/9)\\n  6월 9일 16시까지 제출 필수\\n\\n## 학교 공지\\n\\n- **[2026-1 졸업인증제 제출 안내](https://www.sookmyung.ac.kr/...)** (6/1 ~ 6/29)\\n  졸업 예정자 필수 확인\\n\\n[금지 사항]\\n- 백틱(`) 문자 사용 금지\\n- '핵심 내용:' '링크:' '출처:' 등 레이블 사용 금지\\n- ISO 날짜 형식(2026-05-19T...) 사용 금지\\n- 선별되지 않은 항목 나열 금지\\n- 해당 항목 없으면 그 섹션 생략\\n\\n*이 정보는 참고용이며 원문 공지를 확인해주세요.*\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ $json.noticeText ? JSON.stringify($json.noticeText) : '\"현재 조회된 공지가 없습니다.\"' }}\n    }\n  ],\n  \"max_tokens\": 2000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        980,
+        740
+      ],
+      "id": "n5",
+      "name": "Solar LLM - 혜택 분석 [공지]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ analysis: $('Solar LLM - 혜택 분석 [공지]').first().json.choices[0].message.content, items: $('공지 통합 파싱 [공지]').first().json.items }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1200,
+        740
+      ],
+      "id": "n6",
+      "name": "Respond to Webhook [공지]"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "syllabus",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        100,
+        1100
+      ],
+      "id": "s0",
+      "name": "Webhook [학기일정]",
+      "webhookId": "syllabus-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64 = $input.first().json.body.file_base64;\nconst fileName = $input.first().json.body.file_name || 'syllabus.pdf';\nconst binaryData = await this.helpers.prepareBinaryData(\n  Buffer.from(base64, 'base64'),\n  fileName,\n  'application/pdf'\n);\nreturn [{ json: {}, binary: { data: binaryData } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        1100
+      ],
+      "id": "s1",
+      "name": "PDF 바이너리 변환 [학기일정]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upstage.ai/v1/document-ai/document-parse",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.UPSTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "document",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "ocr",
+              "value": "true"
+            },
+            {
+              "name": "output_formats",
+              "value": "[\"text\"]"
+            },
+            {
+              "name": "model",
+              "value": "document-parse"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        500,
+        1100
+      ],
+      "id": "s2",
+      "name": "강의계획서 OCR 파싱 [학기일정]"
+    },
+    {
+      "id": "s3",
+      "name": "텍스트 추출 [학기일정]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1100
+      ],
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst text = response.content?.text ||\n  (response.pages || []).map(p => p.text || '').join('\\n') || '';\nreturn [{ json: { extracted_text: text } }];"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upstage.ai/v1/solar/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.UPSTAGE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"solar-pro\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"강의계획서를 분석해서 반드시 아래 JSON 형식으로만 응답해. 다른 텍스트 없이 JSON만 반환해.\\n\\n추출 규칙:\\n1. 첫 페이지에서 학기(1 또는 2), 수업 요일, 수업 시작/종료 시간, 강의실을 추출해\\n2. 요일은 반드시 강의계획서에 명시된 그대로 추출해. 예: '화, 목' → [\\\"화\\\",\\\"목\\\"], '월, 수' → [\\\"월\\\",\\\"수\\\"]\\n   절대 임의로 바꾸지 마. '화목' = [\\\"화\\\",\\\"목\\\"], '월수금' = [\\\"월\\\",\\\"수\\\",\\\"금\\\"]\\n3. 수업 시작시간과 종료시간은 HH:MM 형식으로 추출해\\n4. 주차별 강의 내용 표에서 각 주차 번호와 수업 내용, 강의 방법을 추출해\\n5. 날짜는 절대 추측하지 말고 주차 번호만 반환해\\n6. 시험/과제/퀴즈/발표 일정을 specialEvents에 추출해. 주차 번호가 있으면 week, 특정 날짜(YYYY-MM-DD)가 있으면 date로 기록해. type은 반드시 \\\"시험\\\", \\\"과제\\\", \\\"퀴즈\\\", \\\"발표\\\" 중 하나.\\n   찾을 키워드: 중간고사, 기말고사, 시험, 과제, 퀴즈, 발표, 제출, 마감, 보고서\\n\\n응답 형식:\\n{\\\"semester\\\": 1, \\\"days\\\": [\\\"화\\\", \\\"목\\\"], \\\"startTime\\\": \\\"10:30\\\", \\\"endTime\\\": \\\"11:45\\\", \\\"classroom\\\": \\\"명신관418\\\", \\\"weeks\\\": [{\\\"week\\\": 1, \\\"title\\\": \\\"수업 제목\\\", \\\"method\\\": \\\"강의 방법\\\"}], \\\"specialEvents\\\": [{\\\"week\\\": 8, \\\"type\\\": \\\"시험\\\", \\\"title\\\": \\\"중간고사\\\"}, {\\\"week\\\": 15, \\\"date\\\": \\\"2026-06-10\\\", \\\"type\\\": \\\"과제\\\", \\\"title\\\": \\\"최종보고서 제출\\\"}]}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.extracted_text) }}\n    }\n  ],\n  \"max_tokens\": 3000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        900,
+        1100
+      ],
+      "id": "s4",
+      "name": "Solar LLM - 일정 추출 [학기일정]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0].message.content;\nlet parsed;\ntry {\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(jsonMatch[0]);\n} catch(e) { return [{ json: { error: '파싱 실패', raw: content } }]; }\n\nconst { semester, days, startTime, endTime, classroom, weeks } = parsed;\nconst year = 2026;\nconst startMonth = semester === 1 ? 2 : 8; \nconst firstDay = new Date(year, startMonth, 1);\nlet daysUntilMonday = (1 - firstDay.getDay() + 7) % 7;\nconst semesterStart = new Date(year, startMonth, 1 + daysUntilMonday);\n\n// 2026-03-02가 월요일이며, dayMap은 월(0) ~ 일(6) 오프셋을 가짐\nconst dayMap = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };\n\nconst events = weeks.flatMap(week => {\n  const weekIndex = Math.max(0, week.week - 1);\n  return days.map(day => {\n    const dayOffset = dayMap[day];\n    if (dayOffset === undefined) return null;\n    const eventDate = new Date(semesterStart);\n    eventDate.setDate(semesterStart.getDate() + (weekIndex * 7) + dayOffset);\n    const y = eventDate.getFullYear();\n    const mo = String(eventDate.getMonth() + 1).padStart(2, '0');\n    const d = String(eventDate.getDate()).padStart(2, '0');\n    const dateStr = `${y}-${mo}-${d}`;\n    return {\n      json: {\n        title: `[${week.week}주차] ${week.title}`,\n        description: `강의방법: ${week.method || ''}\\n강의실: ${classroom}`,\n        startDateTime: `${dateStr}T${startTime}:00+09:00`,\n        endDateTime: `${dateStr}T${endTime}:00+09:00`,\n        date: dateStr\n      }\n    };\n  }).filter(Boolean);\n});\nreturn events;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1100
+      ],
+      "id": "s5",
+      "name": "일정 구조화 [학기일정]"
+    },
+    {
+      "id": "s7",
+      "name": "일정 집계 [학기일정]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        1100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const events = $input.all().map(item => item.json);\nreturn [{ json: { events, total: events.length } }];"
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1700,
+        1100
+      ],
+      "id": "s8",
+      "name": "Respond to Webhook [학기일정]"
+    },
+    {
+      "id": "g7",
+      "name": "학과 졸업요건 크롤링 [졸업요건]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const webhookJson = $('Webhook [졸업요건]').first().json;\nconst body = webhookJson.body || webhookJson;\nconst department = body.department || '';\n\nconst deptUrlMap = {\n  '컴퓨터과학전공': 'https://csweb.sookmyung.ac.kr/',\n  '데이터사이언스전공': 'https://ds.sookmyung.ac.kr/',\n  '인공지능공학부': 'https://aie.sookmyung.ac.kr/',\n  '수학과': 'http://math.sookmyung.ac.kr/',\n  '통계학과': 'https://stat.sookmyung.ac.kr/',\n  '화학과': 'https://chem.sookmyung.ac.kr/',\n  '생명시스템학부': 'https://bio.sookmyung.ac.kr/',\n  '화공생명공학부': 'https://chembioe.sookmyung.ac.kr/',\n  '지능형전자시스템학부': 'https://electro.sookmyung.ac.kr/',\n  '신소재물리학부': 'https://physics.sookmyung.ac.kr/',\n  '기계시스템학부': 'https://mse.sookmyung.ac.kr/',\n  '식품영양학과': 'http://fn.sookmyung.ac.kr/',\n  '의류학과': 'https://cloth.sookmyung.ac.kr/',\n  '아동복지학부': 'http://childwelfare.sookmyung.ac.kr/',\n  '가족자원경영학과': 'https://family.sookmyung.ac.kr/',\n  '영어영문학부': 'http://english.sookmyung.ac.kr/',\n  '한국어문학부': 'http://korean.sookmyung.ac.kr/',\n  '역사문화학과': 'http://history.sookmyung.ac.kr/',\n  '문헌정보학과': 'https://lis.sookmyung.ac.kr/',\n  '프랑스언어·문화학과': 'http://french.sookmyung.ac.kr/',\n  '중어중문학부': 'http://chinese.sookmyung.ac.kr/',\n  '독일언어·문화학과': 'http://german.sookmyung.ac.kr/',\n  '일본학과': 'http://japan.sookmyung.ac.kr/',\n  '경제학부': 'http://econ.sookmyung.ac.kr/',\n  '법학부': 'http://law.sookmyung.ac.kr/',\n  '정치외교학과': 'http://politics.sookmyung.ac.kr/',\n  '행정학과': 'http://pa.sookmyung.ac.kr/',\n  '홍보광고학과': 'http://prad.sookmyung.ac.kr/',\n  '소비자경제학과': 'http://conecon.sookmyung.ac.kr/',\n  '사회심리학과': 'https://www.socpsy.sookmyung.ac.kr/',\n  '교육학부': 'https://edu.sookmyung.ac.kr/',\n  '미디어학부': 'https://home.sookmyung.ac.kr/media/',\n  '영어영문학전공': 'https://english.sookmyung.ac.kr/',\n  '글로벌협력전공': 'http://global.sookmyung.ac.kr/',\n  '앙트러프러너십전공': 'http://global.sookmyung.ac.kr/',\n  '융합국제학부': 'https://hallyu.sookmyung.ac.kr/',\n  '한류국제학부': 'https://hallyu.sookmyung.ac.kr/',\n  '경영학부': 'http://biz.sookmyung.ac.kr/',\n  '회계학과': 'http://accounting.sookmyung.ac.kr/',\n  '약학부': 'https://pharmacy.sookmyung.ac.kr/',\n  '피아노과': 'http://music.sookmyung.ac.kr/30',\n  '관현악과': 'http://music.sookmyung.ac.kr/29',\n  '성악과': 'http://music.sookmyung.ac.kr/31',\n  '작곡과': 'http://music.sookmyung.ac.kr/32',\n  '회화과': 'http://fineart.sookmyung.ac.kr/',\n  '공예과': 'http://craft.sookmyung.ac.kr/',\n  '시각·영상디자인과': 'https://smvd.sookmyung.ac.kr/',\n  '산업디자인과': 'http://smid.ac.kr/',\n  '환경디자인과': 'http://design.sookmyung.ac.kr/',\n  '체육교육과': 'https://pe.sookmyung.ac.kr/',\n  '무용과': 'https://dance.sookmyung.ac.kr/',\n  '르꼬르동블루외식경영전공': 'https://leb.sookmyung.ac.kr/',\n};\n\nif (!department || !deptUrlMap[department]) {\n  return [{ json: { department, graduationRequirements: '' } }];\n}\n\nconst httpRequest = this.helpers.httpRequest.bind(this.helpers);\nconst baseUrl = deptUrlMap[department];\n\ntry {\n  // 1단계: 홈페이지 fetch → 졸업요건 링크 탐색\n  const html = String(await httpRequest({\n    method: 'GET', url: baseUrl,\n    headers: { 'User-Agent': 'Mozilla/5.0' }\n  }));\n\n  // 졸업요건 관련 링크 추출\n  const linkRe = /href=\"([^\"]*)\"[^>]*>([^<]*(?:졸업|이수요건|교육과정|curriculum|graduation)[^<]*)</gi;\n  let gradUrl = null;\n  let m;\n  while ((m = linkRe.exec(html)) !== null) {\n    const href = m[1];\n    if (href && !href.startsWith('javascript') && !href.startsWith('#')) {\n      gradUrl = href.startsWith('http') ? href : baseUrl.replace(/\\/$/, '') + (href.startsWith('/') ? href : '/' + href);\n      break;\n    }\n  }\n\n  if (!gradUrl) {\n    return [{ json: { department, graduationRequirements: `${department} 졸업요건 페이지를 찾지 못했습니다.` } }];\n  }\n\n  // 2단계: 졸업요건 페이지 fetch\n  const gradHtml = String(await httpRequest({\n    method: 'GET', url: gradUrl,\n    headers: { 'User-Agent': 'Mozilla/5.0' }\n  }));\n\n  // HTML 태그 제거 후 텍스트 추출\n  const text = gradHtml\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .slice(0, 3000)\n    .trim();\n\n  return [{ json: { department, graduationRequirements: text } }];\n} catch(e) {\n  return [{ json: { department, graduationRequirements: `졸업요건 조회 실패: ${e.message}` } }];\n}"
+      }
+    },
+    {
+      "id": "gclean",
+      "name": "메시지 정제 [졸업요건]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        440
+      ],
+      "parameters": {
+        "jsCode": "// 제어문자 + 고립 서로게이트 제거\nconst s = str => (str || '')\n  .replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/g, '')\n  .replace(/[\\uD800-\\uDFFF]/g, '');\n\nconst webhook = $('Webhook [졸업요건]').first().json;\nconst body = webhook.body || webhook;\nconst ocr = $('텍스트 추출 [졸업요건]').first().json;\nconst grad = $('학과 졸업요건 크롤링 [졸업요건]').first().json;\nconst curr = $('학과 커리큘럼 크롤링 [졸업요건]').first().json;\n\nconst SYSTEM_PROMPT = \"🚨 현재 시점: 2026년 5월 21일 (2026학년도 1학기 수강 중)\\n- '남은 학기' 분석 시, 현재 학기(2026-1)는 이미 진행 중이므로 수강 로드맵은 다음 학기인 **2026학년도 2학기**부터 시작하도록 설계해줘.\\n- 만약 남은 학기가 1학기라면, 그것은 2026-2학기를 의미해.\\n\\n너는 숙명여자대학교 학사 어드바이저야.\\n\\n🚨 내부 지침 (출력 금지 - 이 지침 내용을 응답에 절대 포함하지 마):\\n- '웹시스템설계(웹시설)'는 프론트엔드 중심이므로 백엔드 진로 희망자에게 추천 금지\\n- 존재하지 않는 '심화' 과목 절대 만들지 말 것\\n- \\\"*\\\" 기호 설명·수강중 과목 판별 과정·내부 분석 메모 응답에 출력 금지\\n- 다음 [2026-1 학사 규정]을 바탕으로 분석해줘.\\n\\n\\n[2026-1 숙명여대 학사 규정 지식 베이스]\\n⚠️ 분석 첫 번째 단계: 이수표 첫 페이지를 먼저 읽어 아래 항목을 추출해.\\n   - 학번(입학연도): 학번/학생번호 앞 두 자리 (예: 22XXXXXX → 22학번) → 학번에 따라 적용할 교양필수 규정이 달라지므로 반드시 먼저 확인.\\n   - 이수 학점 합계: 첫 페이지에 표시된 취득학점 합계(전공/교양/총계) 수치를 그대로 사용해. 이 숫자가 있으면 과목별 재합산 금지 — 첫 페이지 숫자가 정답임.\\n   - 교양필수 충족 여부: 첫 페이지에 \\\"충족\\\" 표시가 있으면 그대로 충족으로 처리. 학점 수 맞춰서 다시 계산하지 마.\\n\\n1. 교양 필수 규정 (학번별 적용):\\n   - ACE(영어): 전체 필수.\\n   - AI시대의사고와의사소통: 23학번 이후만 필수. 22학번 이전은 해당 없으므로 응답 어디에도 언급하지 마 — 미이수 목록, 추천 목록, 부족 학점 설명 등 모든 곳에서 완전 제외.\\n   - 논리적사고와소프트웨어: IT 계열 학과(컴퓨터과학전공·데이터사이언스전공·인공지능공학부 등 소프트웨어학부) 학생은 면제이므로 응답에 언급하지 마.\\n   - 미래설계와나의브랜딩: 25학번 이후만 필수. 24학번 이전은 해당 없음 — 응답에 언급하지 마.\\n   - ⚠️ 이수표에 \\\"충족\\\"으로 표시된 항목은 학점 수와 무관하게 충족으로 판단해. \\\"부족\\\"이라고 쓰거나 추가 수강을 제안하지 마.\\n2. 교양 핵심 선택:\\n   - 26학번~: 5영역(AI·SW) 포함 3개 영역 이상, 총 15학점 이상.\\n   - 20~25학번: 1~5영역 중 2개 영역 이상, 총 15학점 이상.\\n   - ~19학번: 영역 구분 없이 총 15학점 이상.\\n3. 졸업 요건: 입학년도별 졸업학점배정표 기준.\\n\\n\\n너는 숙명여자대학교 학사 어드바이저야.\\n\\n\\n\\n🚨 가장 중요한 규칙: 사용자 메시지 맨 위의 [분석 대상 학과]에 명시된 학과 기준으로만 분석해. 이수표 안에 다른 학과 이름(예: 컴퓨터과학전공)이 보여도 절대 그 학과 기준으로 분석하지 마. [분석 대상 학과]가 수학과라면 수학과 졸업요건으로, 통계학과라면 통계학과 졸업요건으로만 판단해야 해. 졸업요건 정보가 없더라도 네가 아는 해당 학과 일반적 졸업요건 기준(총 학점, 전공필수 등)을 최대한 활용해.\\n\\n⚠️ 이수표 분석 시 HTML 표 구조를 최우선으로 참고해.\\n\\n⚠️ 이수표에 \\\"충족\\\", \\\"이수완료\\\", \\\"면제\\\" 등으로 표시된 항목은 실제 학점 수와 무관하게 해당 요건이 충족된 것으로 판단해. 학점 수가 기준보다 적어도 충족 표시가 있으면 미이수로 분류하지 마. 업스테이지 Document AI가 표의 행/열 구조를 보존해서 과목명·학점·이수구분이 정확하게 파싱된 데이터야. 텍스트보다 HTML을 우선 사용해.\\n\\n⚠️ 🚨🚨🚨 추천 금지 규칙 (절대 위반 금지) 🚨🚨🚨\\n\\n이수표에 등장하는 과목을 아래 두 그룹으로 분류해:\\n\\n[그룹 A - 이수 완료] 성적 칸에 실제 성적(A, B+, C 등 문자 성적 또는 숫자)이 있는 과목\\n[그룹 B - 현재 수강 중] 성적 칸이 비어있거나 \\\"*\\\", \\\"수강중\\\", \\\"수강\\\", \\\"이수중\\\", \\\"P\\\", \\\"NP\\\", 기호만 있는 과목\\n\\n→ 그룹 A와 그룹 B 모두 추천 절대 금지.\\n→ 추천 가능한 과목 = 이수표 어디에도 과목명이 단 한 번도 등장하지 않은 과목만.\\n→ 그룹 B 과목(특히 \\\"*\\\" 표시)은 미이수 필수 목록에도 절대 포함하지 마.\\n\\n다음 형식으로 분석해줘:\\n\\n## 📖 2026학년도 공식 졸업학점 배정표 데이터\\n[2026 학과별 정밀 졸업 기준 학점 (안내서 10p 기준)]\\n- 컴퓨터과학전공: 전필 15, 전선 57(심화) / 39(다전공), 교필 12, 교핵 15, 총 130\\n- 인공지능공학부: 전필 30, 전선 42(심화) / 24(다전공), 교필 12, 교핵 15, 총 130\\n- 데이터사이언스전공: 전필 15, 전선 57(심화) / 39(다전공), 교필 12, 교핵 15, 총 130\\n- 화학과: 전필 25, 전선 40(심화) / 18(다전공), 교필 12, 교핵 15, 총 130\\n- 법학부: 전필 18, 전선 51(심화) / 27(다전공), 교필 12, 교핵 15, 총 125\\n- 미디어학부: 전필 18, 전선 45(심화) / 30(다전공), 교필 12, 교핵 15, 총 125\\n- 의류학과: 전필 12, 전선 53(심화) / 30(다전공), 교필 12, 교핵 15, 총 130\\n- 경영학부: 전필 18, 전선 36(심화) / 24(다전공), 교필 12, 교핵 15, 총 125\\n(※ 기타 학과는 인문사회 125, 자연/공학 130 기준으로 분석하되, 위 구체적 기준을 최우선함)\\n\\n## 📊 이수 현황\\n⚠️ 학점 계산 규칙: 이수표의 각 과목 학점을 한 줄씩 직접 합산해. 추정하거나 반올림하지 마. 계산 후 검산(재합산)을 반드시 해.\\n- 이수 완료 학점: 그룹 A 과목 학점만 합산 (그룹 B 수강중 과목 학점 포함 금지)\\n- 잔여 학점: 졸업 필요 학점 - 이수 완료 학점 - 현재 수강중 학점\\n- 형식: \\\"이수 완료 X학점 / 졸업 필요 Y학점 (잔여 Z학점)\\\"\\n\\n## ✅ 이수 완료 과목\\n- 전공필수 이수 완료 목록 (과목명 · 학점)\\n\\n## ⚠️ 미이수 필수 과목\\n- 이수표에 과목명이 단 한 번도 등장하지 않은 전공필수만 표시 (성적 없는 수강중 과목도 제외)\\n\\n## 🗓️ 다음 학기 개설 과목 안내\\n현재 2026-1학기 수강 중이므로 다음 신청 학기는 **2026-2학기(2학기)**야.\\n\\n아래 우선순위로 개설 학기를 판단해줘:\\n1. **최우선**: 사용자 메시지의 `=== 학과 개설 커리큘럼 ===` 섹션에 1학기/2학기 개설 정보가 명시되어 있으면 그걸 그대로 사용해.\\n2. **차선**: 커리큘럼 데이터에 학기 정보가 없으면, 네가 아는 해당 학과 일반적 개설 패턴으로 추정하되 \\\"(추정)\\\"이라고 표기해줘.\\n\\n미이수 필수 과목 중 2학기 개설 과목을 우선 추천하고, 각 과목 옆에 `[2학기 개설]` 또는 `[매학기]` 또는 `[1학기만 개설-추정]` 형태로 표기해줘.\\n\\n## 🗓️ 학기별 수강 로드맵\\n⚠️ 로드맵 배치 금지 과목: 이수표에 한 번이라도 등장한 과목(이수 완료 + \\\"*\\\" 수강중 모두)은 로드맵에 포함하지 마.\\n남은 학기 수를 고려해서, 과목 간 선수 관계(커리큘럼 기반)를 반영한 학기별 수강 계획을 짜줘.\\n[희망 진로] 정보가 있다면 해당 진로에 도움되는 전공선택 과목을 로드맵에 우선 배치해줘.\\n예: 다음 학기 → 다다음 학기 순서로 구체적으로.\\n학기당 18학점 기준으로 전공필수 우선 배치해줘.\\n\\n## 📋 이번 학기 최우선 추천\\n반드시 지킬 것:\\n① 이수표에 과목명이 단 한 번도 등장하지 않은 과목만 추천 (이수 완료 + 수강중 \\\"*\\\" 과목 모두 제외)\\n② \\\"*\\\" 표시 = 현재 수강중 → 절대 추천 금지 (예: 시스템프로그래밍, 빅데이터처리 등)\\n③ 학과 커리큘럼 섹션의 과목 목록에서만 추천\\n- 선수과목 이수 완료된 전공필수 중 우선순위 TOP 3\\n- [희망 진로]에 최적화된 전공선택 추천 및 이유 (커리큘럼 기반)\\n\\n커리큘럼 정보가 없으면 이수표와 졸업요건만으로 분석해줘.\\n\\n⚠️ 응답에 HTML 태그(<br>, <p>, <td> 등)를 절대 사용하지 마. 마크다운 형식으로만 답해.\\n\\n\\n\\n## 🎯 취준 역량 분석\\n[희망 진로]가 \\'일반\\' 또는 미입력이 아닌 경우에만 이 섹션을 출력해.\\n이수 완료한 과목(그룹 A)이 [희망 진로]에서 어떤 역량/기술에 해당하는지 매핑해줘.\\n형식:\\n- 과목명 → 역량/기술명 (자소서/포트폴리오 활용 포인트)\\n마지막에 자소서에서 바로 쓸 수 있는 소재 2-3개를 한 줄씩 요약해줘.\\n\\n⚠️ 응답 출력 형식 금지 사항 (절대 위반 금지):\\n- 과목명 뒤 괄호/대괄호 주석 완전 금지. \\\"(추천 금지: ...)\\\", \\\"[재수강 과목 제외]\\\", \\\"[23학번 이후 필수]\\\", \\\"[2학기 개설 추정]\\\" 등 모든 형태 금지.\\n- 제외/금지/면제 이유 설명 금지. 빼야 할 과목은 그냥 목록에서 제외하면 됨.\\n- \\\"※ ... 수강 필요\\\" 형태의 추가 주석 금지.\\n- 개설 학기 정보는 [2학기 개설] [매학기] 형태로만 붙이고 그 외 주석 금지.\";\n\nconst userMsg = [\n  `[분석 대상 학과]: ${body.department || '미입력'}`,\n  `[남은 학기] ${body.remaining_semesters || '미입력'}학기`,\n  `[희망 진로] ${body.career_goal || '일반'}`,\n  '=== 이수표 (HTML 표 구조) ===',\n  s(ocr.extracted_html || 'HTML 없음'),\n  '=== 이수표 (텍스트) ===',\n  s(ocr.extracted_text || ''),\n  `=== ${grad.department || ''} 졸업요건 ===`,\n  s(grad.graduationRequirements || '정보 없음'),\n  `=== ${curr.department || ''} 개설 커리큘럼 ===`,\n  s(curr.curriculum || '정보 없음'),\n].join('\\n\\n');\n\nreturn [{ json: {\n  model: 'solar-pro',\n  temperature: 0,\n  messages: [\n    { role: 'system', content: SYSTEM_PROMPT },\n    { role: 'user', content: userMsg }\n  ],\n  max_tokens: 2200\n} }];"
+      }
+    },
+    {
+      "id": "gm",
+      "name": "이수표+졸업요건 병합 [졸업요건]",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        780,
+        440
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "g9",
+      "name": "학과 커리큘럼 크롤링 [졸업요건]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        620
+      ],
+      "parameters": {
+        "jsCode": "const webhookJson = $('Webhook [졸업요건]').first().json;\nconst body = webhookJson.body || webhookJson;\nconst department = body.department || '';\n\nconst deptCurriculumUrl = {\n  '컴퓨터과학전공': 'https://csweb.sookmyung.ac.kr/csweb/5833/subview.do',\n  '데이터사이언스전공': 'https://ds.sookmyung.ac.kr/',\n  '인공지능공학부': 'https://aie.sookmyung.ac.kr/',\n  '수학과': 'http://math.sookmyung.ac.kr/',\n  '통계학과': 'https://stat.sookmyung.ac.kr/',\n  '화학과': 'https://chem.sookmyung.ac.kr/',\n  '생명시스템학부': 'https://bio.sookmyung.ac.kr/',\n  '화공생명공학부': 'https://chembioe.sookmyung.ac.kr/',\n  '지능형전자시스템학부': 'https://electro.sookmyung.ac.kr/',\n  '신소재물리학부': 'https://physics.sookmyung.ac.kr/',\n  '기계시스템학부': 'https://mse.sookmyung.ac.kr/',\n  '식품영양학과': 'http://fn.sookmyung.ac.kr/',\n  '의류학과': 'https://cloth.sookmyung.ac.kr/',\n  '아동복지학부': 'http://childwelfare.sookmyung.ac.kr/',\n  '가족자원경영학과': 'https://family.sookmyung.ac.kr/',\n  '영어영문학부': 'http://english.sookmyung.ac.kr/',\n  '한국어문학부': 'http://korean.sookmyung.ac.kr/',\n  '역사문화학과': 'http://history.sookmyung.ac.kr/',\n  '문헌정보학과': 'https://lis.sookmyung.ac.kr/',\n  '프랑스언어·문화학과': 'http://french.sookmyung.ac.kr/',\n  '중어중문학부': 'http://chinese.sookmyung.ac.kr/',\n  '독일언어·문화학과': 'http://german.sookmyung.ac.kr/',\n  '일본학과': 'http://japan.sookmyung.ac.kr/',\n  '경제학부': 'http://econ.sookmyung.ac.kr/',\n  '법학부': 'http://law.sookmyung.ac.kr/',\n  '정치외교학과': 'http://politics.sookmyung.ac.kr/',\n  '행정학과': 'http://pa.sookmyung.ac.kr/',\n  '홍보광고학과': 'http://prad.sookmyung.ac.kr/',\n  '소비자경제학과': 'http://conecon.sookmyung.ac.kr/',\n  '사회심리학과': 'https://www.socpsy.sookmyung.ac.kr/',\n  '교육학부': 'https://edu.sookmyung.ac.kr/',\n  '미디어학부': 'https://home.sookmyung.ac.kr/media/',\n  '영어영문학전공': 'https://english.sookmyung.ac.kr/',\n  '글로벌협력전공': 'http://global.sookmyung.ac.kr/',\n  '앙트러프러너십전공': 'http://global.sookmyung.ac.kr/',\n  '융합국제학부': 'https://hallyu.sookmyung.ac.kr/',\n  '한류국제학부': 'https://hallyu.sookmyung.ac.kr/',\n  '경영학부': 'http://biz.sookmyung.ac.kr/',\n  '회계학과': 'http://accounting.sookmyung.ac.kr/',\n  '약학부': 'https://pharmacy.sookmyung.ac.kr/',\n  '피아노과': 'http://music.sookmyung.ac.kr/30',\n  '관현악과': 'http://music.sookmyung.ac.kr/29',\n  '성악과': 'http://music.sookmyung.ac.kr/31',\n  '작곡과': 'http://music.sookmyung.ac.kr/32',\n  '회화과': 'http://fineart.sookmyung.ac.kr/',\n  '공예과': 'http://craft.sookmyung.ac.kr/',\n  '시각·영상디자인과': 'https://smvd.sookmyung.ac.kr/',\n  '산업디자인과': 'http://smid.ac.kr/',\n  '환경디자인과': 'http://design.sookmyung.ac.kr/',\n  '체육교육과': 'https://pe.sookmyung.ac.kr/',\n  '무용과': 'https://dance.sookmyung.ac.kr/',\n  '르꼬르동블루외식경영전공': 'https://leb.sookmyung.ac.kr/',\n};\n\nif (!department || !deptCurriculumUrl[department]) {\n  return [{ json: { department, curriculum: '' } }];\n}\n\nconst httpRequest = this.helpers.httpRequest.bind(this.helpers);\nconst baseUrl = deptCurriculumUrl[department];\n\ntry {\n  const html = String(await httpRequest({\n    method: 'GET', url: baseUrl,\n    headers: { 'User-Agent': 'Mozilla/5.0' }\n  }));\n\n  // 교육과정/커리큘럼 링크 탐색\n  const linkRe = /href=\"([^\"]*)\"[^>]*>([^<]*(?:교육과정|커리큘럼|교과목|개설과목|과목소개)[^<]*)</gi;\n  let currUrl = null;\n  let m;\n  while ((m = linkRe.exec(html)) !== null) {\n    const href = m[1];\n    if (href && !href.startsWith('javascript') && !href.startsWith('#')) {\n      currUrl = href.startsWith('http') ? href : baseUrl.replace(/\\/$/, '') + (href.startsWith('/') ? href : '/' + href);\n      break;\n    }\n  }\n\n  if (!currUrl) {\n    return [{ json: { department, curriculum: '' } }];\n  }\n\n  const currHtml = String(await httpRequest({\n    method: 'GET', url: currUrl,\n    headers: { 'User-Agent': 'Mozilla/5.0' }\n  }));\n\n  const text = currHtml\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .slice(0, 3000)\n    .trim();\n\n  return [{ json: { department, curriculum: text } }];\n} catch(e) {\n  return [{ json: { department, curriculum: '' } }];\n}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "PDF 바이너리 변환 [졸업요건]",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "학과 졸업요건 크롤링 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF 바이너리 변환 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "이수표 OCR 파싱 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이수표 OCR 파싱 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "텍스트 추출 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "텍스트 추출 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "이수표+졸업요건 병합 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "학과 졸업요건 크롤링 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "학과 커리큘럼 크롤링 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "학과 커리큘럼 크롤링 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "이수표+졸업요건 병합 [졸업요건]",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "이수표+졸업요건 병합 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "메시지 정제 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "메시지 정제 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "졸업요건 AI 분석 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "졸업요건 AI 분석 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "결과 포맷팅 [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "결과 포맷팅 [졸업요건]": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook [졸업요건]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook [공지]": {
+      "main": [
+        [
+          {
+            "node": "학교 비교과 수집 [공지]",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "학과 게시판 수집 [공지]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "학교 비교과 수집 [공지]": {
+      "main": [
+        [
+          {
+            "node": "공지 병합 [공지]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "학과 게시판 수집 [공지]": {
+      "main": [
+        [
+          {
+            "node": "공지 병합 [공지]",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "공지 병합 [공지]": {
+      "main": [
+        [
+          {
+            "node": "공지 통합 파싱 [공지]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "공지 통합 파싱 [공지]": {
+      "main": [
+        [
+          {
+            "node": "Solar LLM - 혜택 분석 [공지]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solar LLM - 혜택 분석 [공지]": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook [공지]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "PDF 바이너리 변환 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF 바이너리 변환 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "강의계획서 OCR 파싱 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "강의계획서 OCR 파싱 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "텍스트 추출 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "텍스트 추출 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "Solar LLM - 일정 추출 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solar LLM - 일정 추출 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "일정 구조화 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "일정 구조화 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "일정 집계 [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "일정 집계 [학기일정]": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook [학기일정]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
