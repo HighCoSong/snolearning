@@ -3,6 +3,10 @@
 > **숙명여자대학교 학생을 위한 AI 기반 학업 지원 서비스**  
 > Upstage Document AI + Solar LLM + n8n 로우코드 자동화로 구현한 모바일 웹 앱
 
+![Award](https://img.shields.io/badge/2026_Low--Code_AI_CHALLENGE-대상-gold?style=for-the-badge)
+![Organizer](https://img.shields.io/badge/주관-숙명여대_SW중심대학사업단-5B4FCF?style=for-the-badge)
+![Partner](https://img.shields.io/badge/파트너-Upstage-00B4D8?style=for-the-badge)
+
 ---
 
 ## 개요
@@ -31,6 +35,8 @@
 
 - 학과 선택 (숙명여대 전체 학과 지원)
 - 남은 학기 수 · 희망 진로 입력 시 맞춤 로드맵 생성
+- 분석 결과를 **학업 분석** / **취업 아카이빙** 탭으로 분리 표시
+- 희망 진로 입력 시 이수 과목 역량 아카이빙 탭 활성화
 - 이미 수강 중인 과목(`*` 표시)은 추천에서 자동 제외
 - 학번 기반 교양필수 규정 자동 적용
 
@@ -55,8 +61,10 @@
     └─ 통합 목록 반환
 ```
 
-- 학과별 공지 + 포털 공지 한 화면에서 확인
+- 학과공지 · 비교과 · **학사 공지** 탭으로 분류
 - 장학금 · 취업 · 학사 등 카테고리 필터
+- **AI 맞춤 분석 카드**: 저장된 학과 · 진로 · 남은 학기 기반 맞춤 공지 분석 표시
+- 기간형 공지의 dateRange 뱃지 표시
 
 ---
 
@@ -69,7 +77,7 @@
 | **워크플로우 자동화** | [n8n](https://n8n.io) (로우코드, 셀프호스팅) |
 | **프론트엔드** | Next.js 16 + React 19, TypeScript |
 | **캘린더 연동** | Google Calendar API (OAuth 2.0) |
-| **배포** | ngrok (n8n webhook 터널) + Vercel (프론트) |
+| **배포** | Vercel (프론트) + n8n 로컬/셀프호스팅 (`N8N_BASE_URL` 환경변수로 연결) |
 
 ---
 
@@ -167,12 +175,18 @@ npm run dev
 
 ### 환경 변수
 
-n8n 워크플로우 내 credential로 관리 (`.env` 불필요):
+n8n 워크플로우 내 credential로 관리:
 
 | 항목 | 설정 위치 |
 |------|----------|
 | Upstage API Key | n8n Credentials → HTTP Header Auth |
 | Google Calendar | n8n Credentials → Google OAuth2 |
+
+프론트엔드 환경 변수 (`.env.local`):
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `N8N_BASE_URL` | `http://localhost:5678` | n8n 웹훅 베이스 URL |
 
 ---
 
@@ -193,7 +207,7 @@ n8n의 `jsonBody` 템플릿 내에 시스템 프롬프트를 직접 삽입하면
 
 - 분석 결과는 AI 생성 참고 자료입니다. 학사 시스템에서 반드시 최종 확인하세요.
 - 학과별 세부 규정(교직 이수, 트랙 등)은 AI가 정확히 파악하지 못할 수 있습니다.
-- n8n과 ngrok이 실행 중이어야 기능이 동작합니다.
+- n8n이 실행 중이어야 기능이 동작합니다. (`N8N_BASE_URL` 환경변수로 엔드포인트 지정)
 
 ---
 
